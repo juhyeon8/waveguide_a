@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>패러데이 케이지 산란 시뮬레이션</title>
+<title>도선 격자에 의한 입사파-산란파 중첩 모형</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="app">
   <div id="canvasWrap"><canvas id="canvas"></canvas></div>
   <div id="panel">
-    <h1>패러데이 케이지 산란</h1>
+    <h1>도선 격자에 의한 입사파-산란파 중첩 모형</h1>
 
     <!-- 탭 버튼 -->
     <div id="tabBar">
@@ -19,9 +19,9 @@
 
     <!-- Pane 0: 무한 배열 (기본) -->
     <div class="tabPane active" id="pane0">
-      <div class="sub">도선이 창 전체에 가득 차, 무한 배열에 가까운 이상적인 패러데이 케이지를
-        시뮬레이션합니다. 간격 d가 결정되면 도선 수 N이 자동으로 결정됩니다.
-        평면파(왼→오른)가 입사합니다.</div>
+      <div class="sub">도선이 창 전체에 가득 차, 무한 배열에 가까운 이상적인 도선 격자를
+        다룹니다. 간격 d가 결정되면 도선 수 N이 자동으로 결정됩니다.
+        평면파(왼→오른)가 입사하며, 입사파와 각 도선이 만드는 산란파의 중첩으로 결과를 계산합니다.</div>
       <h2>도선 설정</h2>
       <div class="row">
         <label style="width:48px">반지름 a</label>
