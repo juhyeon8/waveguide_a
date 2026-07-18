@@ -376,6 +376,20 @@
     cv3.addEventListener("mousemove", function(e){ if (woodHitTest(e)) showWoodTip(e.clientX, e.clientY); else hideWoodTip(); });
     cv3.addEventListener("mouseleave", hideWoodTip);
     cv3.addEventListener("click", function(e){ if (woodHitTest(e)) showWoodTip(e.clientX, e.clientY); else hideWoodTip(); });
+
+    var box = document.getElementById("presetBtns");
+    PRESET_PAIRS.forEach(function (pr) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "λ" + pr[0] + "/d" + pr[1];
+      b.addEventListener("click", function () {
+        state.lamMM = pr[0]; state.dMM = pr[1];
+        document.getElementById("lamSlider").value = pr[0];
+        document.getElementById("dSlider").value = pr[1];
+        render();
+      });
+      box.appendChild(b);
+    });
   }
 
   // ===================================================================

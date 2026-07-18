@@ -15,6 +15,9 @@ pre{white-space:pre-wrap}
 .ctl .val{color:#C0392B;font-variant-numeric:tabular-nums}
 .ctl input[type=range]{width:100%;accent-color:#2471A3}
 .ctl.static{justify-content:center;font-weight:700;color:#555}
+.presetbtns{display:flex;flex-wrap:wrap;gap:6px}
+.presetbtns button{font:inherit;font-size:15px;padding:4px 10px;border:1px solid #2471A3;background:#fff;color:#2471A3;border-radius:4px;cursor:pointer}
+.presetbtns button:hover{background:#EAF2F8}
 .ldBig{font-size:22px;font-weight:700;color:#111;white-space:nowrap}
 .nav{display:flex;align-items:center;gap:8px;margin-left:auto}
 .nav button{font:inherit;font-size:15px;padding:6px 14px;border:1px solid #2471A3;background:#fff;color:#2471A3;border-radius:4px;cursor:pointer}
@@ -37,7 +40,7 @@ body.risky .readnum{color:#8A9199}
 
 /* ── 3단계 우드 문턱 전문 툴팁 (v6 §6, 세로 점선 호버/클릭) ── */
 .woodtip{position:fixed;max-width:360px;background:#fff;border:1px solid #7D3C98;border-radius:6px;
-  padding:10px 12px;font-size:15px;line-height:1.6;color:#333;box-shadow:0 3px 10px rgba(0,0,0,0.18);z-index:50}
+  padding:10px 12px;font-size:16px;line-height:1.6;color:#333;box-shadow:0 3px 10px rgba(0,0,0,0.18);z-index:50}
 .woodtip[hidden]{display:none}
 
 /* ── 1단계 접이식 상세보기 (v6 §7) ── */
