@@ -3,3 +3,25 @@ body{background:#fff;color:#111;font:16px system-ui,sans-serif}
 .badge.pass{background:#e8f6ec;color:#1e7e34}
 .badge.fail{background:#fdecec;color:#c0392b}
 pre{white-space:pre-wrap}
+
+/* ── 상단 조작부 ── */
+.controlbar{
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:18px;
+  margin:16px 0;padding:12px 16px;
+  border:1px solid #D5DBE1;border-radius:6px;
+}
+.ctl{display:flex;flex-direction:column;gap:4px;min-width:160px}
+.ctl label{font-weight:700;font-size:15px}
+.ctl .val{color:#C0392B;font-variant-numeric:tabular-nums}
+.ctl input[type=range]{width:100%;accent-color:#2471A3}
+.ctl.static{justify-content:center;font-weight:700;color:#555}
+.ldBig{font-size:22px;font-weight:700;color:#111;white-space:nowrap}
+.nav{display:flex;align-items:center;gap:8px;margin-left:auto}
+.nav button{font:inherit;font-size:15px;padding:6px 14px;border:1px solid #2471A3;background:#fff;color:#2471A3;border-radius:4px;cursor:pointer}
+.nav button:hover{background:#EAF2F8}
+#stepVal{font-variant-numeric:tabular-nums;font-weight:700}
+
+/* ── 좌우 분할 단계 패널 ── */
+.stage{display:flex;gap:18px}
+.stage .col{flex:1;min-width:0}
+canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid #D5DBE1;border-radius:6px}

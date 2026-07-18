@@ -310,7 +310,245 @@
   function pad(v, n) { var s = String(v); while (s.length < n) s = " " + s; return s; }
 
   // ===================================================================
-  // 5. 시작 — 자가 테스트 게이트 통과 후에만 렌더 (§1.6) — Task 1에서는 렌더 없음
+  // 5. 상태 + 라우터 + 조작부 바인딩
+  // ===================================================================
+  var state = { lamMM: 60, dMM: 3, N: 200, L: 1.0, step: 1 };
+  function lamM() { return state.lamMM / 1000; }
+  function dM()   { return state.dMM / 1000; }
+  function ld()   { return state.lamMM / state.dMM; }
+
+  function syncLabels() {
+    document.getElementById("lamVal").textContent = state.lamMM.toFixed(0) + " mm";
+    document.getElementById("dVal").textContent   = state.dMM.toFixed(0) + " mm";
+    document.getElementById("ldBig").textContent  = "λ/d = " + ld().toFixed(1);
+    document.getElementById("nVal").textContent   = state.N;
+    document.getElementById("lVal").textContent   = state.L.toFixed(2) + " m";
+    document.getElementById("stepVal").textContent = state.step + "/3";
+  }
+  function gotoStep(n) {
+    state.step = Math.min(3, Math.max(1, n));
+    ["panel1","panel2","panel3"].forEach(function (id, i) {
+      document.getElementById(id).hidden = (i + 1 !== state.step);
+    });
+    document.getElementById("nWrap").hidden = state.step !== 1;
+    document.getElementById("lWrap").hidden = state.step !== 2;
+    render();
+  }
+  function render() {
+    if (state.step === 1) drawStep1();
+    else if (state.step === 2) drawStep2();
+    else drawStep3();
+    syncLabels();
+  }
+  function bind() {
+    document.getElementById("lamSlider").addEventListener("input", function(){ state.lamMM = +this.value; render(); });
+    document.getElementById("dSlider").addEventListener("input", function(){ state.dMM = +this.value; render(); });
+    document.getElementById("nSlider").addEventListener("input", function(){ state.N = +this.value; render(); });
+    document.getElementById("lSlider").addEventListener("input", function(){ state.L = +this.value; render(); });
+    document.getElementById("prevBtn").addEventListener("click", function(){ gotoStep(state.step - 1); });
+    document.getElementById("nextBtn").addEventListener("click", function(){ gotoStep(state.step + 1); });
+  }
+
+  // ===================================================================
+  // 6. 캔버스 도우미 (v5 phasor/script.js L291–473 그대로 복사)
+  // ===================================================================
+  var view = {};                // 영역별 축 반경 (히스테리시스용) — fitRadius가 키별로 채움
+
+  function prep(cv) {
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.width, h = cv.height;
+    if (cv.dataset.ready !== "1") {
+      cv.style.width = w + "px";
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      cv.dataset.logicalW = w; cv.dataset.logicalH = h;
+      cv.dataset.ready = "1";
+    }
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var W = +cv.dataset.logicalW, H = +cv.dataset.logicalH;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, W, H);
+    return { ctx: ctx, W: W, H: H };
+  }
+
+  function niceStep(range, target) {
+    var raw = range / target;
+    var m = Math.pow(10, Math.floor(Math.log10(raw)));
+    var n = raw / m;
+    return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * m;
+  }
+
+  // 축 반경 히스테리시스: 필요 반경이 창을 넘거나 절반 아래로 내려가면 갱신
+  function fitRadius(key, need) {
+    var cur = view[key];
+    if (cur === 0 || need > cur * 0.98 || need < cur * 0.5) {
+      var step = niceStep(need * 2.3, 5);
+      view[key] = Math.ceil(need * 1.15 / step) * step;
+    }
+    return view[key];
+  }
+
+  function arrow(ctx, x1, y1, x2, y2, color, width, head) {
+    var dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    if (len < head * 1.2) return;
+    var a = Math.atan2(dy, dx);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(a - 0.42), y2 - head * Math.sin(a - 0.42));
+    ctx.lineTo(x2 - head * Math.cos(a + 0.42), y2 - head * Math.sin(a + 0.42));
+    ctx.closePath(); ctx.fill();
+  }
+
+  // 복소평면 격자·눈금·라벨. 반환: 복소수 → 화면좌표 매퍼
+  // top = 평면 시작 y, bottomReserve = 아래쪽에 비워둘 높이
+  function complexPlane(ctx, W, H, top, bottomReserve, R) {
+    var padX = 34;
+    var size = Math.min(W - padX * 2, H - top - bottomReserve);
+    var cx = W / 2, cy = top + size / 2;
+    var sc = (size / 2) / R;
+    var step = niceStep(R * 2, 5);
+    var t;
+
+    ctx.save();
+    // 격자
+    ctx.strokeStyle = "#EDF0F3"; ctx.lineWidth = 1;
+    for (var g = -Math.floor(R / step) * step; g <= R + 1e-9; g += step) {
+      var gx = cx + g * sc, gy = cy - g * sc;
+      ctx.beginPath(); ctx.moveTo(gx, cy - size / 2); ctx.lineTo(gx, cy + size / 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - size / 2, gy); ctx.lineTo(cx + size / 2, gy); ctx.stroke();
+    }
+    // 축
+    ctx.strokeStyle = "#9AA3AB"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(cx - size / 2, cy); ctx.lineTo(cx + size / 2, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - size / 2); ctx.lineTo(cx, cy + size / 2); ctx.stroke();
+    // 눈금 숫자 — 가로는 축 아래, 세로는 축 왼쪽
+    ctx.font = "13px system-ui, sans-serif"; ctx.fillStyle = "#666";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (t = -Math.floor(R / step) * step; t <= R + 1e-9; t += step) {
+      if (Math.abs(t) < 1e-9) continue;
+      ctx.fillText(fmtTick(t), cx + t * sc, cy + 5);
+    }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (t = -Math.floor(R / step) * step; t <= R + 1e-9; t += step) {
+      if (Math.abs(t) < 1e-9) continue;
+      ctx.fillText(fmtTick(t), cx - 5, cy - t * sc);
+    }
+    // 축 라벨 — 평면 안쪽에 배치해 잘리지 않게
+    ctx.fillStyle = C_INK; ctx.font = "bold 15px system-ui, sans-serif";
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText("Re", cx + size / 2, cy - 5);
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText("Im", cx + 6, cy - size / 2);
+    // 원점
+    ctx.fillStyle = "#666";
+    ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, TWO_PI); ctx.fill();
+    ctx.restore();
+
+    var map = function (z) { return [cx + z.re * sc, cy - z.im * sc]; };
+    map.box = { x: cx - size / 2, y: cy - size / 2, w: size, h: size };
+    return map;
+  }
+
+  // 그림 영역 밖으로 나가는 궤적이 범례·수치를 덮지 않게 자른다
+  function clipToPlot(ctx, map) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(map.box.x, map.box.y, map.box.w, map.box.h);
+    ctx.clip();
+  }
+
+  function backdrop(ctx, x, y, w, h) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
+
+  function fmtTick(t) {
+    var a = Math.abs(t);
+    if (a >= 1000 || (a < 0.01 && a > 0)) return t.toExponential(0);
+    return String(Math.round(t * 1000) / 1000);
+  }
+
+  function dottedTarget(ctx, W, p, color, label) {
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.arc(p[0], p[1], 9, 0, TWO_PI); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(p[0] - 13, p[1]); ctx.lineTo(p[0] + 13, p[1]);
+    ctx.moveTo(p[0], p[1] - 13); ctx.lineTo(p[0], p[1] + 13);
+    ctx.stroke();
+    if (label) {
+      // 표적 바로 위 가운데. 그림과 겹쳐도 읽히도록 흰 배경을 깐다.
+      ctx.font = "bold 14px system-ui, sans-serif";
+      var w = ctx.measureText(label).width;
+      var lx = Math.min(Math.max(p[0], w / 2 + 6), W - w / 2 - 6);
+      backdrop(ctx, lx - w / 2 - 3, p[1] - 32, w + 6, 17);
+      ctx.fillStyle = color; ctx.textBaseline = "bottom"; ctx.textAlign = "center";
+      ctx.fillText(label, lx, p[1] - 16);
+    }
+    ctx.restore();
+  }
+
+  function panelTitle(ctx, W, text, sub) {
+    ctx.save();
+    ctx.font = "bold 17px system-ui, sans-serif";
+    ctx.fillStyle = C_INK; ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText(text, 10, 8);
+    if (sub) {
+      ctx.font = "13px system-ui, sans-serif"; ctx.fillStyle = "#666";
+      ctx.fillText(sub, 10, 29);
+    }
+    ctx.restore();
+  }
+
+  // 패널 안 상시 표기값 (§7: 정지 캡처가 완결되게). 배경을 깔아 그림과 겹쳐도 읽히게.
+  function readout(ctx, W, y, rows) {
+    ctx.save();
+    ctx.font = "16px system-ui, sans-serif";
+    var wmax = 0;
+    rows.forEach(function (r) { wmax = Math.max(wmax, ctx.measureText(r[0] + " " + r[1]).width); });
+    backdrop(ctx, W - 14 - wmax, y - 3, wmax + 10, rows.length * 20 + 4);
+    ctx.textAlign = "right"; ctx.textBaseline = "top";
+    rows.forEach(function (r, i) {
+      ctx.fillStyle = r[2] || C_INK;
+      ctx.fillText(r[0] + " " + r[1], W - 8, y + i * 20);
+    });
+    ctx.restore();
+  }
+
+  // 왼쪽 아래 범례/주석 (배경 포함)
+  function notes(ctx, W, H, rows) {
+    ctx.save();
+    ctx.font = "14px system-ui, sans-serif";
+    var wmax = 0;
+    rows.forEach(function (r) { wmax = Math.max(wmax, ctx.measureText(r[0]).width); });
+    var y0 = H - rows.length * 18 - 8;
+    backdrop(ctx, 6, y0 - 3, wmax + 10, rows.length * 18 + 6);
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    rows.forEach(function (r, i) {
+      ctx.fillStyle = r[1] || "#555";
+      ctx.fillText(r[0], 10, y0 + i * 18);
+    });
+    ctx.restore();
+  }
+
+  // ===================================================================
+  // 7. stub draw 함수 (패널 제목만 — 실제 렌더는 Task 3-7)
+  // ===================================================================
+  function drawStep1(){ var c=prep(document.getElementById("canvas1L")); panelTitle(c.ctx,c.W,"1단계 (좌) 실공간","stub");
+                        var r=prep(document.getElementById("canvas1R")); panelTitle(r.ctx,r.W,"1단계 (우) 닫힌 다각형","stub"); }
+  function drawStep2(){ var c=prep(document.getElementById("canvas2L")); panelTitle(c.ctx,c.W,"2단계 (좌) 경로","stub");
+                        var r=prep(document.getElementById("canvas2R")); panelTitle(r.ctx,r.W,"2단계 (우) 나선","stub"); }
+  function drawStep3(){ var c=prep(document.getElementById("canvas3")); panelTitle(c.ctx,c.W,"3단계 곡선","stub"); }
+
+  // ===================================================================
+  // 8. 시작 — 자가 테스트 게이트 통과 후에만 렌더 (§1.6)
   // ===================================================================
   var res = runSelfTest();
   console.log(res.text);
@@ -319,7 +557,7 @@
   if (res.fail === 0) {
     badge.className = "badge pass";
     badge.textContent = "자가 테스트 PASS " + res.pass + " / FAIL 0 — 렌더 진행";
-    // (렌더는 Task 2 이후)
+    bind(); gotoStep(1);
   } else {
     badge.className = "badge fail";
     badge.textContent = "자가 테스트 FAIL " + res.fail + " — 렌더 중단";
