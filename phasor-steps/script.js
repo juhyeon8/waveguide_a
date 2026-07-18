@@ -332,6 +332,7 @@
     });
     document.getElementById("nWrap").hidden = state.step !== 1;
     document.getElementById("lWrap").hidden = state.step !== 2;
+    document.getElementById("step1Caption").hidden = state.step !== 1;
     render();
   }
   function render() {
@@ -401,6 +402,22 @@
     ctx.lineTo(x2 - head * Math.cos(a - 0.42), y2 - head * Math.sin(a - 0.42));
     ctx.lineTo(x2 - head * Math.cos(a + 0.42), y2 - head * Math.sin(a + 0.42));
     ctx.closePath(); ctx.fill();
+  }
+
+  // 이웃 도선 → A 로 향하는 가는 활 모양 화살선(1단계 왼쪽 전용). bow만큼 왼쪽으로 휘어
+  // 같은 세로줄 위의 여러 화살이 서로 겹치지 않고 A로 모여드는 모습을 만든다.
+  function curvedArrow(ctx, x1, y1, x2, y2, bow, color, width) {
+    var ccx = x1 - bow, ccy = (y1 + y2) / 2, head = 6;
+    ctx.save();
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(ccx, ccy, x2, y2); ctx.stroke();
+    var a = Math.atan2(y2 - ccy, x2 - ccx);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(a - 0.4), y2 - head * Math.sin(a - 0.4));
+    ctx.lineTo(x2 - head * Math.cos(a + 0.4), y2 - head * Math.sin(a + 0.4));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
   }
 
   // 복소평면 격자·눈금·라벨. 반환: 복소수 → 화면좌표 매퍼
@@ -539,16 +556,202 @@
   }
 
   // ===================================================================
-  // 7. stub draw 함수 (패널 제목만 — 실제 렌더는 Task 3-7)
+  // 7. 색 문법 (v6 §1-6) — 1단계·2단계 공유. rank 0=중앙(진함) → 멀수록 옅은 주황.
+  //    실공간 도선색 = 복소평면 화살표색.
   // ===================================================================
-  function drawStep1(){ var c=prep(document.getElementById("canvas1L")); panelTitle(c.ctx,c.W,"1단계 (좌) 실공간","stub");
-                        var r=prep(document.getElementById("canvas1R")); panelTitle(r.ctx,r.W,"1단계 (우) 닫힌 다각형","stub"); }
+  // 왼쪽 실공간에 표시하는 이웃 쌍 개수. 오른쪽 다각형도 이웃 사슬 색을 고를 때
+  // 같은 값을 total로 넘겨써야 rank별 색이 두 패널에서 정확히 일치한다
+  // (오른쪽은 N개까지 이어지지만 rank>WIRE_PAIRS_SHOWN 구간은 가장 옅은 색 하나로 포화됨 — 의도된 단순화).
+  var WIRE_PAIRS_SHOWN = 10;
+  function wireColor(rank, total) {
+    var f = 1 - 0.72 * Math.min(1, rank / Math.max(1, total));
+    return "rgba(230,126,34," + (0.30 + 0.70 * f).toFixed(3) + ")";
+  }
+
+  // 화살표 옆에 흰 배경을 깐 라벨 (겹쳐도 읽히게). 캔버스 폭 안으로 x를 clamp.
+  function arrowLabel(ctx, W, x, y, text, color) {
+    ctx.save();
+    ctx.font = "13px system-ui, sans-serif";
+    var w = ctx.measureText(text).width;
+    var lx = Math.min(Math.max(x, 4), W - w - 4);
+    backdrop(ctx, lx - 3, y - 9, w + 6, 16);
+    ctx.fillStyle = color; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    ctx.fillText(text, lx, y);
+    ctx.restore();
+  }
+
+  // ===================================================================
+  // 8. 1단계 — 왼쪽: 실공간 세로 도선 배열 + 입사파 + A로 향하는 화살선 (v6 §2 왼쪽)
+  // ===================================================================
+  function drawStep1Left() {
+    var c = prep(document.getElementById("canvas1L"));
+    var ctx = c.ctx, W = c.W, H = c.H;
+    panelTitle(ctx, W, "1단계 (좌) 실공간 — 세로 도선 배열", "가운데 도선 A 표면에 이웃들의 전기장이 도착한다");
+
+    var plotTop = 60, plotBottom = H - 90;
+    var cyA = (plotTop + plotBottom) / 2;
+    var wireX = 480, spacing = 20, nShown = WIRE_PAIRS_SHOWN;
+
+    // 평면파 입사 (회색 파면 + 화살표 + 라벨)
+    ctx.save();
+    ctx.strokeStyle = "#C3C9CF"; ctx.lineWidth = 1.4; ctx.setLineDash([2, 5]);
+    [50, 85, 120, 155].forEach(function (x) {
+      ctx.beginPath(); ctx.moveTo(x, plotTop); ctx.lineTo(x, plotBottom); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    ctx.restore();
+    arrow(ctx, 40, plotTop + 16, 205, plotTop + 16, C_GREY, 3, 10);
+    ctx.save();
+    ctx.font = "bold 14px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("평면파 입사", 40, plotTop + 6);
+    ctx.restore();
+
+    // 이웃 → A 화살선 (뒤쪽부터 그려 앞쪽 진한 색이 위에 오게)
+    for (var rank = nShown; rank >= 1; rank--) {
+      var col = wireColor(rank, nShown);
+      var bow = 18 + rank * 14;
+      curvedArrow(ctx, wireX, cyA - rank * spacing, wireX, cyA, bow, col, 1.4);
+      curvedArrow(ctx, wireX, cyA + rank * spacing, wireX, cyA, bow, col, 1.4);
+    }
+
+    // 표시 범위 바깥 이웃 — 점점이 암시
+    ctx.save();
+    ctx.fillStyle = "#B9BEC4";
+    [1, 2].forEach(function (j) {
+      var r = nShown + j, al = 0.5 - j * 0.18;
+      ctx.globalAlpha = Math.max(0.12, al);
+      [-1, 1].forEach(function (s) {
+        ctx.beginPath(); ctx.arc(wireX, cyA + s * r * spacing, 3, 0, TWO_PI); ctx.fill();
+      });
+    });
+    ctx.globalAlpha = 1;
+    ctx.font = "16px system-ui, sans-serif"; ctx.fillStyle = "#9AA3AB";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("⋮", wireX, cyA - (nShown + 2.2) * spacing);
+    ctx.fillText("⋮", wireX, cyA + (nShown + 2.2) * spacing);
+    ctx.restore();
+
+    // 도선 점 — 이웃(색) + 가운데 A(굵은 검정)
+    for (var n = 1; n <= nShown; n++) {
+      var col2 = wireColor(n, nShown);
+      ctx.fillStyle = col2;
+      ctx.beginPath(); ctx.arc(wireX, cyA - n * spacing, 5, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA + n * spacing, 5, 0, TWO_PI); ctx.fill();
+    }
+    ctx.fillStyle = C_INK;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.stroke();
+    ctx.save();
+    ctx.font = "bold 15px system-ui, sans-serif"; ctx.fillStyle = C_INK;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText("A", wireX + 14, cyA);
+    ctx.restore();
+
+    // 좌하단: 간격 d + 스케일 바 (도선 간 픽셀 간격 = d, 그 자체를 눈금으로 삼는다)
+    var sbX = 14, sbY = plotBottom + 16;
+    ctx.save();
+    ctx.strokeStyle = "#333"; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(sbX, sbY - 5); ctx.lineTo(sbX, sbY + 5);
+    ctx.moveTo(sbX, sbY); ctx.lineTo(sbX + spacing, sbY);
+    ctx.moveTo(sbX + spacing, sbY - 5); ctx.lineTo(sbX + spacing, sbY + 5);
+    ctx.stroke();
+    ctx.font = "bold 13px system-ui, sans-serif"; ctx.fillStyle = "#333";
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("간격 d = " + state.dMM.toFixed(0) + " mm", sbX, sbY - 8);
+    ctx.restore();
+
+    notes(ctx, W, H, [
+      ["● 도선 A (가운데, 굵은 검정)", C_INK],
+      ["● 이웃 ±rank 쌍 (진한→옅은 주황 — 오른쪽 화살표와 동일 색)", "rgba(230,126,34,0.85)"],
+      ["회색 점선 파면 = 평면파 입사 (왼쪽 → 오른쪽)", "#8A9199"]
+    ]);
+  }
+
+  // ===================================================================
+  // 9. 1단계 — 오른쪽: 실제 전기장의 닫힌 다각형 (v6 §2 오른쪽, 본 그림)
+  // ===================================================================
+  function drawStep1Right() {
+    var c = prep(document.getElementById("canvas1R"));
+    var ctx = c.ctx, W = c.W, H = c.H;
+    var kk = k(lamM()), d = dM(), N = state.N;
+    var I = currentExact(kk, A_WIRE, d);
+    var P = denomPartials(kk, A_WIRE, d, N);   // P[0]=Z_self, …, P[N]=D_N
+    var Dex = denomExact(kk, A_WIRE, d);
+
+    // 실제 전기장 누적점: 입사(1,0) → 자기항 → 이웃 사슬 → 잔여 → 원점(닫힘)
+    var pts = [{ re: 1, im: 0 }];
+    for (var n = 0; n <= N; n++) pts.push(cAdd({ re: 1, im: 0 }, cMul(I, P[n])));
+    var residual = { re: Dex.re - P[N].re, im: Dex.im - P[N].im };
+    pts.push(cAdd({ re: 1, im: 0 }, cMul(I, cAdd(P[N], residual))));   // = 원점(0,0), 기계 정밀도로 닫힘
+
+    panelTitle(ctx, W, "1단계 (우) 실제 전기장의 닫힌 다각형", "복소평면 (무차원, 축 거의 고정) · 입사파 = 1 기준");
+    // 근고정 프레임 (critical fact #4: fitRadius 금지·view={} 버그 회피).
+    // 프리셋 6종 전부 maxpt=1.000(입사점이 지배) → R=1.6이면 여유 있게 담고도 다각형이 더 크게 보인다.
+    var R = 1.6;
+    var map = complexPlane(ctx, W, H, 55, 110, R);
+    var O = map({ re: 0, im: 0 });
+    clipToPlot(ctx, map);
+
+    // 이웃 사슬 (pts[1]→pts[2]→…→pts[N+1]) — rank n은 왼쪽 도선과 동일한 wireColor
+    ctx.save();
+    ctx.lineWidth = 1.6; ctx.lineJoin = "round";
+    for (var seg = 1; seg <= N; seg++) {
+      var s0 = map(pts[seg]), s1 = map(pts[seg + 1]);
+      ctx.strokeStyle = wireColor(seg, WIRE_PAIRS_SHOWN);
+      ctx.beginPath(); ctx.moveTo(s0[0], s0[1]); ctx.lineTo(s1[0], s1[1]); ctx.stroke();
+    }
+    ctx.restore();
+    // 앞쪽 몇 개만 화살촉 (v5 drawA 방식 — N이 클 때 다 그리면 뭉갬)
+    for (var h = 1; h <= Math.min(6, N); h++) {
+      var q0 = map(pts[h]), q1 = map(pts[h + 1]);
+      arrow(ctx, q0[0], q0[1], q1[0], q1[1], wireColor(h, WIRE_PAIRS_SHOWN), 1.8, 7);
+    }
+
+    // 입사파 (회색, 원점→(1,0))
+    var pInc = map(pts[0]);
+    arrow(ctx, O[0], O[1], pInc[0], pInc[1], C_GREY, 3.6, 11);
+
+    // 자기항 (파랑, (1,0)→pts[1])
+    var pSelf = map(pts[1]);
+    arrow(ctx, pInc[0], pInc[1], pSelf[0], pSelf[1], C_BLUE, 3, 10);
+
+    // 잔여 (옅은 회색, pts[N+1]→원점) — 문턱 부근이면 커진 채로 그대로 드러낸다
+    var pLast = map(pts[N + 1]);
+    var pClose = map(pts[N + 2]);
+    arrow(ctx, pLast[0], pLast[1], pClose[0], pClose[1], "rgba(138,145,153,0.65)", 2.6, 9);
+
+    ctx.restore();   // 클리핑 해제 — 아래 라벨·수치·범례는 잘리면 안 된다
+
+    // 라벨은 클리핑 밖에서 그려 플롯 경계에 잘리지 않게 한다
+    arrowLabel(ctx, W, (O[0] + pInc[0]) / 2, O[1] - 12, "입사파 (=1)", C_GREY);
+    arrowLabel(ctx, W, (pInc[0] + pSelf[0]) / 2, (pInc[1] + pSelf[1]) / 2 - 10,
+      "도선 자신이 만든 전기장 (I × self term)", C_BLUE);
+    arrowLabel(ctx, W, (pLast[0] + pClose[0]) / 2, (pLast[1] + pClose[1]) / 2 + 12,
+      "먼 이웃들의 나머지 (|Δ|=" + mag(cMul(I, residual)).toFixed(4) + ")", "#8A9199");
+
+    readout(ctx, W, 57, [
+      ["λ/d =", ld().toFixed(2), C_RED],
+      ["N =", String(N)],
+      ["|I| =", mag(I).toFixed(4), C_RED]
+    ]);
+
+    notes(ctx, W, H, [
+      ["■ 입사파(회색) → 자기항(파랑) → 이웃 사슬(주황, rank별)", C_INK],
+      ["■ 옅은 회색 = 먼 이웃들의 나머지(잔여) — N↑ 시 줄어듦", "#8A9199"],
+      ["끝점이 원점으로 돌아옴 = 도선 표면 전기장 0", "#555"]
+    ]);
+  }
+
+  function drawStep1() { drawStep1Left(); drawStep1Right(); }
   function drawStep2(){ var c=prep(document.getElementById("canvas2L")); panelTitle(c.ctx,c.W,"2단계 (좌) 경로","stub");
                         var r=prep(document.getElementById("canvas2R")); panelTitle(r.ctx,r.W,"2단계 (우) 나선","stub"); }
   function drawStep3(){ var c=prep(document.getElementById("canvas3")); panelTitle(c.ctx,c.W,"3단계 곡선","stub"); }
 
   // ===================================================================
-  // 8. 시작 — 자가 테스트 게이트 통과 후에만 렌더 (§1.6)
+  // 10. 시작 — 자가 테스트 게이트 통과 후에만 렌더 (§1.6)
   // ===================================================================
   var res = runSelfTest();
   console.log(res.text);
