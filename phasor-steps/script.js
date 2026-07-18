@@ -944,12 +944,12 @@
       // y≤cyA라 아래쪽은 항상 비어 있다)에 둔다.
       var tooLongLine1 = "λ = " + state.lamMM + " mm > 화면 폭", tooLongLine2 = "파장이 화면보다 김";
       ctx.save();
-      ctx.font = "bold 14px system-ui, sans-serif";
+      ctx.font = "bold 16px system-ui, sans-serif";
       var tooLongW = Math.max(ctx.measureText(tooLongLine1).width, ctx.measureText(tooLongLine2).width);
-      backdrop(ctx, waveBandLeft - 4, cyA + 26, tooLongW + 8, 40);
+      backdrop(ctx, waveBandLeft - 4, cyA + 26, tooLongW + 8, 46);
       ctx.fillStyle = C_GREY; ctx.textAlign = "left"; ctx.textBaseline = "top";
       ctx.fillText(tooLongLine1, waveBandLeft, cyA + 30);
-      ctx.fillText(tooLongLine2, waveBandLeft, cyA + 48);
+      ctx.fillText(tooLongLine2, waveBandLeft, cyA + 50);
       ctx.restore();
     }
     arrow(ctx, 16, plotTop + 16, 155, plotTop + 16, C_GREY, 3, 10);
