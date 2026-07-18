@@ -35,6 +35,17 @@
 <section id="panel1" class="stage"><div class="col"><canvas id="canvas1L" width="620" height="640"></canvas></div>
   <div class="col"><canvas id="canvas1R" width="620" height="640"></canvas></div></section>
 <p id="step1Caption" class="caption">"도선 표면에서는 도선과 나란한 전기장이 0이어야 한다(도체의 성질). 입사파의 전기장, 도선 자신이 만드는 전기장, 이웃 도선들이 만드는 전기장을 화살표로 이어 보면 한 바퀴 돌아 제자리로 돌아온다 — 합이 0이라는 뜻이다. 전류는 아무 크기나 흐르는 게 아니라, 이 다각형이 닫히도록 꼭 맞는 크기로 흐른다. 파장이나 간격을 바꿔 보라. 화살표들의 방향과 길이가 재조립되지만, 다각형은 언제나 닫힌다."</p>
+<details id="detail1" class="detail">
+<summary>전류값은 정확히 어떻게 계산되나 ▸</summary>
+<div class="prose">
+<p>왼쪽 다각형은 "전류가 표면 전기장을 0으로 만든다"는 <strong>결과</strong>를 보여줍니다. 그런데 그 전류값 자체는 어떻게 구했을까요? 여기서는 그 계산 과정을 보여줍니다.</p>
+<p><strong>왜 이걸 구하나.</strong> 다각형을 그리려면 전류 I를 알아야 합니다. 그런데 I는 하늘에서 주어지지 않습니다 — "다각형이 닫히도록" 스스로 정해집니다. 그 조건을 식으로 쓰면: (입사파) + I×(전류 1단위가 만드는 전기장의 합) = 0. 여기서 괄호 안, 즉 <strong>"전류를 1단위 흘렸다고 가정할 때 도선 A 표면에 생기는 전기장"</strong>을 먼저 계산해 두면, I는 간단한 나눗셈으로 나옵니다: <strong>I = −(입사파) ÷ (괄호 안의 합)</strong>.</p>
+<p><strong>아래 그림이 그 "괄호 안의 합"입니다.</strong> 파란 화살표는 자체 산란(self term) — 도선 A 자신이 전류 1단위로 자기 표면에 만드는 전기장입니다. 도선 표면은 전류에서 가장 가까운 곳이라 이 화살표가 가장 깁니다. 빨간 사슬은 이웃들의 몫 — 각 이웃 도선이 (같은 전류 1단위로) A 표면에 보내는 전기장을 가까운 쌍부터 하나씩 이어 붙인 것입니다. 파랑과 빨강을 모두 이은 끝점(검은 화살표 D)이 "괄호 안의 합"이고, 전류의 크기는 그 <strong>역수</strong>입니다: |I| = 1 ÷ |D|. 합이 길수록(저항이 클수록) 전류는 작아집니다.</p>
+<p><strong>점선 과녁(정답 표적)은 무엇인가.</strong> 빨간 사슬은 이웃을 유한 개까지만 더한 것이라, 개수 N을 바꾸면 끝점이 조금씩 흔들립니다. 그런데 이 배열은 똑같은 도선이 똑같은 간격으로 무한히 반복되는 구조라서, "한 칸 옮겨도 세상이 똑같아 보인다"는 대칭을 이용하면 무한히 더한 결과를 <strong>한 번에 정확히</strong> 계산할 수 있습니다. 이런 계산법을 수학자 플로케(Floquet)의 이름을 따서 <strong>플로케 방법</strong>이라 부릅니다(결정 속 전자를 다룰 때 쓰는 블로흐 정리와 같은 아이디어입니다). 점선 과녁이 바로 그 정확한 답의 위치입니다. N을 키우면 사슬 끝이 과녁으로 감겨 드는 것을 확인해 보세요 — "하나씩 더한 결과"와 "대칭으로 한 번에 구한 결과"가 같다는 것을 눈으로 확인하는 셈입니다.</p>
+<p><strong>요약.</strong> ① 전류 1단위당 전기장(파랑+빨강)을 더해 D를 만들고 → ② 전류는 그 역수(|I|=1/|D|) → ③ 그 전류로 그린 것이 왼쪽의 닫힌 다각형입니다. 왼쪽은 물리(경계조건), 여기는 계산(그 조건을 푸는 법)입니다.</p>
+</div>
+<canvas id="canvasDetail" width="620" height="520"></canvas>
+</details>
 <section id="panel2" class="stage" hidden><div class="col"><canvas id="canvas2L" width="620" height="640"></canvas></div>
   <div class="col"><canvas id="canvas2R" width="620" height="640"></canvas></div></section>
 <section id="panel3" class="stage" hidden><canvas id="canvas3" width="1000" height="720"></canvas></section>

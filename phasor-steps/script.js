@@ -333,6 +333,7 @@
     document.getElementById("nWrap").hidden = state.step !== 1;
     document.getElementById("lWrap").hidden = state.step !== 2;
     document.getElementById("step1Caption").hidden = state.step !== 1;
+    document.getElementById("detail1").hidden = state.step !== 1;
     render();
   }
   function render() {
@@ -348,6 +349,7 @@
     document.getElementById("lSlider").addEventListener("input", function(){ state.L = +this.value; render(); });
     document.getElementById("prevBtn").addEventListener("click", function(){ gotoStep(state.step - 1); });
     document.getElementById("nextBtn").addEventListener("click", function(){ gotoStep(state.step + 1); });
+    document.getElementById("detail1").addEventListener("toggle", drawDetail);
   }
 
   // ===================================================================
@@ -383,7 +385,7 @@
   // 축 반경 히스테리시스: 필요 반경이 창을 넘거나 절반 아래로 내려가면 갱신
   function fitRadius(key, need) {
     var cur = view[key];
-    if (cur === 0 || need > cur * 0.98 || need < cur * 0.5) {
+    if (!cur || need > cur * 0.98 || need < cur * 0.5) {
       var step = niceStep(need * 2.3, 5);
       view[key] = Math.ceil(need * 1.15 / step) * step;
     }
@@ -745,7 +747,75 @@
     ]);
   }
 
-  function drawStep1() { drawStep1Left(); drawStep1Right(); }
+  function drawStep1() { drawStep1Left(); drawStep1Right(); drawDetail(); }
+
+  // ===================================================================
+  // 9b. 1단계 접이식 상세 — 전류 1단위당 분모 D 조립 + Floquet 정확값 표적 (v6 §7)
+  //     v5 phasor/script.js drawA(L478–550)의 복소평면 조립도를 자동 스케일로 이식.
+  // ===================================================================
+  function drawDetail() {
+    var det = document.getElementById("detail1");
+    if (!det || det.open !== true) return;   // 닫혀 있으면 그리지 않는다
+    var c = prep(document.getElementById("canvasDetail"));
+    var ctx = c.ctx, W = c.W, H = c.H;
+    var kk = k(lamM()), d = dM(), N = state.N;
+    var P = denomPartials(kk, A_WIRE, d, N), D = P[N], Dex = denomExact(kk, A_WIRE, d);
+
+    var need = 0;
+    for (var i = 0; i <= N; i++) need = Math.max(need, mag(P[i]));
+    need = Math.max(need, mag(Dex));
+    var R = fitRadius("detail", need);   // 자동 스케일(v6) — v5의 고정축 VIEW_A와 달리 매 렌더 재계산
+
+    panelTitle(ctx, W, "전류 1단위당 분모 D 조립", "복소평면 (자동 스케일) · D = Z_self + Σ 2H₀(k·n·d) → Floquet 정확값에 수렴");
+    var map = complexPlane(ctx, W, H, 50, 64, R);
+    var O = map({ re: 0, im: 0 });
+    clipToPlot(ctx, map);
+
+    // 이웃 사슬 (n 커질수록 옅게) — v5 drawA 이식
+    ctx.save();
+    ctx.lineWidth = 1.6; ctx.lineJoin = "round";
+    for (var n = 1; n <= N; n++) {
+      var p0 = map(P[n - 1]), p1 = map(P[n]);
+      var f = 1 - 0.75 * Math.min(1, (n - 1) / Math.max(1, N - 1));
+      ctx.strokeStyle = "rgba(192,57,43," + (0.25 + 0.75 * f).toFixed(3) + ")";
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+    }
+    ctx.restore();
+    // 앞쪽 몇 개만 화살촉 (N이 클 때 다 그리면 뭉갬)
+    for (var m2 = 1; m2 <= Math.min(6, N); m2++) {
+      var q0 = map(P[m2 - 1]), q1 = map(P[m2]);
+      arrow(ctx, q0[0], q0[1], q1[0], q1[1], C_RED, 1.8, 7);
+    }
+
+    // 자기항 (파랑) — 전류 1단위당 자기 표면 전기장
+    var pz = map(P[0]);
+    arrow(ctx, O[0], O[1], pz[0], pz[1], C_BLUE, 4, 11);
+
+    // Floquet 정확 분모 표적 — N↑ 시 빨간 사슬 끝이 여기로 감겨든다
+    dottedTarget(ctx, W, map(Dex), C_BLUE, "Floquet 정확값");
+
+    // 분모 D (검정 굵게)
+    var pd = map(D);
+    arrow(ctx, O[0], O[1], pd[0], pd[1], C_INK, 3.4, 12);
+    ctx.restore();   // 클리핑 해제 — 아래 라벨·수치·범례는 잘리면 안 된다
+
+    arrowLabel(ctx, W, pz[0] + 8, pz[1] - 14, "자체 산란(self term): 전류 1단위당 자기 표면 전기장", C_BLUE);
+    arrowLabel(ctx, W, pd[0] + 8, pd[1] + 16, "D = Z_self + Σ 2H₀(k·n·d)", C_INK);
+
+    var absD = mag(D), absI = 1 / mag(Dex);
+    readout(ctx, W, 57, [
+      ["λ/d =", ld().toFixed(2), C_RED],
+      ["N =", String(N)],
+      ["|D_N| =", absD.toFixed(3)],
+      ["|I| = 1/|D| =", absI.toFixed(4), C_RED]
+    ]);
+
+    notes(ctx, W, H, [
+      ["■ 자기항 Z_self = H₀(ka)  (전류 1단위당)", C_BLUE],
+      ["■ 이웃 쌍 2·H₀(k·n·d)  (n 커질수록 옅게)", C_RED],
+      ["■ D = Z_self + S      ⊕ Floquet 정확값 (점선)", C_INK]
+    ]);
+  }
   function drawStep2(){ var c=prep(document.getElementById("canvas2L")); panelTitle(c.ctx,c.W,"2단계 (좌) 경로","stub");
                         var r=prep(document.getElementById("canvas2R")); panelTitle(r.ctx,r.W,"2단계 (우) 나선","stub"); }
   function drawStep3(){ var c=prep(document.getElementById("canvas3")); panelTitle(c.ctx,c.W,"3단계 곡선","stub"); }

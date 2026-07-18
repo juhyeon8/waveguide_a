@@ -29,3 +29,10 @@ canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid #D5
 
 /* ── 캡션 (v6 §2, 패널 하단) ── */
 .caption{max-width:1258px;margin:10px 0 0;color:#333;font-size:16px;line-height:1.55}
+
+/* ── 1단계 접이식 상세보기 (v6 §7) ── */
+.detail{max-width:1258px;margin:14px 0 0;border:1px solid #D5DBE1;border-radius:6px;padding:10px 16px}
+.detail summary{font-weight:700;font-size:16px;cursor:pointer;color:#2471A3}
+.detail .prose{margin:10px 0 14px;color:#333;font-size:16px;line-height:1.6}
+.detail .prose p{margin:0 0 10px}
+.detail canvas{max-width:620px}
