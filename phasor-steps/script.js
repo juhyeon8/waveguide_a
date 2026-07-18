@@ -610,8 +610,13 @@
   // (오른쪽은 N개까지 이어지지만 rank>WIRE_PAIRS_SHOWN 구간은 가장 옅은 색 하나로 포화됨 — 의도된 단순화).
   var WIRE_PAIRS_SHOWN = 10;
   function wireColor(rank, total) {
-    var f = 1 - 0.72 * Math.min(1, rank / Math.max(1, total));
-    return "rgba(230,126,34," + (0.30 + 0.70 * f).toFixed(3) + ")";
+    // rank 0(가장 가까운 이웃) = 진한 적갈색 #7B2D00, rank가 커질수록(멀어질수록) 밝은 노랑 #F5C542로
+    // 밝기가 단조 증가하는 램프. RGB 선형보간(각 채널이 모두 증가하므로 밝기도 단조 증가).
+    var t = Math.min(1, rank / Math.max(1, total));
+    var r = Math.round(123 + (245 - 123) * t);
+    var g = Math.round(45 + (197 - 45) * t);
+    var b = Math.round(0 + (66 - 0) * t);
+    return "rgb(" + r + "," + g + "," + b + ")";
   }
 
   // 화살표 옆에 흰 배경을 깐 라벨 (겹쳐도 읽히게). 캔버스 폭 안으로 x를 clamp.
