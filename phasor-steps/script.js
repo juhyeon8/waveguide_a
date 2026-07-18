@@ -904,7 +904,7 @@
     var c = prep(document.getElementById("canvas2L"));
     var ctx = c.ctx, W = c.W, H = c.H;
     panelTitle(ctx, W, "2단계 (좌) 실공간 — 정면 관측점 P까지 경로",
-      "세로 간격은 실척, 가로 방향은 압축(실척 아님)");
+      "왼쪽 입사 영역: λ 실척 / 오른쪽 경로 영역: 압축");
 
     var plotTop = 60, plotBottom = H - 90;
     var cyA = (plotTop + plotBottom) / 2;
@@ -921,14 +921,37 @@
     var nShownActual = Math.min(nShown, rankMax);              // 밴드 안에 실제로 들어가는 이웃 쌍 수
     var dotR = Math.min(5, 0.42 * spacing);                    // 1단계와 동일한 조밀 축소 규칙
 
-    // 평면파 입사 (1단계 왼쪽과 동일 idiom, wireX 이동에 맞춰 위치만 조정)
+    // 평면파 입사 (v6 R7): 1단계(좌)와 동일한 공식 — 파면 간격(px) = λ(mm) × PX_PER_MM —을 재사용해
+    // 실척으로 그린다(이전엔 [30,60,90,120] 고정 픽셀이라 λ 슬라이더를 움직여도 변화가 없던 버그).
+    // 파면은 wireX 왼쪽 입사 밴드([waveBandLeft, wireX]) 안에서만 그린다. 이 패널은 오른쪽에 경로선
+    // 영역을 내줘야 해서 밴드가 1단계보다 훨씬 좁다 — λ가 커지면 1단계보다 훨씬 쉽게 파면이 0개가
+    // 될 수 있다. 0개면(한 파장도 안 들어가면) 강제로 하나 그리거나 다시 맞추지(rescale) 않고,
+    // 대신 안내 문구로 그 사실을 그대로 보여준다(§6 확정 — 축척 왜곡보다 "안 보임"이 낫다).
     ctx.save();
     ctx.strokeStyle = "#C3C9CF"; ctx.lineWidth = 1.4; ctx.setLineDash([2, 5]);
-    [30, 60, 90, 120].forEach(function (x) {
-      ctx.beginPath(); ctx.moveTo(x, plotTop); ctx.lineTo(x, plotBottom); ctx.stroke();
-    });
+    var waveSpacing = state.lamMM * PX_PER_MM;
+    var waveBandLeft = 16;
+    var waveDrawn = false;
+    for (var wx = wireX - waveSpacing; wx >= waveBandLeft; wx -= waveSpacing) {
+      ctx.beginPath(); ctx.moveTo(wx, plotTop); ctx.lineTo(wx, plotBottom); ctx.stroke();
+      waveDrawn = true;
+    }
     ctx.setLineDash([]);
     ctx.restore();
+    if (!waveDrawn) {
+      // 문구가 좁은 입사 밴드보다 넓어 R_0 라벨(y=cyA)·경로선 다발과 겹치지 않도록 em-dash에서
+      // 두 줄로 나눠 그린다(내용은 스펙 문구와 동일, 배치만 두 줄). cyA보다 아래(R_n 라벨은 전부
+      // y≤cyA라 아래쪽은 항상 비어 있다)에 둔다.
+      var tooLongLine1 = "λ = " + state.lamMM + " mm > 화면 폭", tooLongLine2 = "파장이 화면보다 김";
+      ctx.save();
+      ctx.font = "bold 14px system-ui, sans-serif";
+      var tooLongW = Math.max(ctx.measureText(tooLongLine1).width, ctx.measureText(tooLongLine2).width);
+      backdrop(ctx, waveBandLeft - 4, cyA + 26, tooLongW + 8, 40);
+      ctx.fillStyle = C_GREY; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText(tooLongLine1, waveBandLeft, cyA + 30);
+      ctx.fillText(tooLongLine2, waveBandLeft, cyA + 48);
+      ctx.restore();
+    }
     arrow(ctx, 16, plotTop + 16, 155, plotTop + 16, C_GREY, 3, 10);
     ctx.save();
     ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
@@ -968,8 +991,8 @@
       // P 라벨은 Px를 따라가지 않는 고정 위치(우측 상단, plotTop 위쪽 여백)에 둔다.
       // 예전엔 Px 기준 상대 위치(Px+6, Py+26)였는데, arrowLabel의 가장자리 clamp가 Px가 커져
       // 캔버스 폭에 가까워질 때 라벨을 왼쪽(팬 라인 다발 쪽)으로 끌어당겨, 넓은 L·d 조합에서
-      // 라벨 배경이 P로 모이는 경로선과 겹치는 문제가 있었다(R6 리뷰). 이 패널은 가로축이 이미
-      // 압축돼 있어(부제 "가로 방향은 압축" 참고) 라벨이 P의 실제 x를 따라갈 이유가 없다.
+      // 라벨 배경이 P로 모이는 경로선과 겹치는 문제가 있었다(R6 리뷰). 이 오른쪽 경로 영역은 가로축이
+      // 이미 압축돼 있어(부제 "오른쪽 경로 영역: 압축" 참고) 라벨이 P의 실제 x를 따라갈 이유가 없다.
       // plotTop(=60)보다 위쪽은 halfBand 제한상 어떤 슬라이더 조합에서도 경로선이 닿지 않는
       // 영역이므로, 여기 고정하면 항상 안전하다. 라벨이 더 이상 P를 따라가지 않으므로 어떤 점을
       // 가리키는지 짧은 점선 안내선으로 이어준다.
