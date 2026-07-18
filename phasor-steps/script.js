@@ -965,10 +965,27 @@
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.arc(Px, Py, 6, 0, TWO_PI); ctx.stroke();
       ctx.restore();
-      // 라벨은 P 아래쪽에 둔다 — 오른쪽(같은 높이)은 경로선들이 P로 수렴하는 다발과 겹치고,
-      // 캔버스 폭이 좁아 우측 여백이 부족할 때 좌측(자동 clamp)으로 밀리면 그 다발 위에 얹히던 문제가 있었다.
-      // 아래쪽은 P 지점 기준 아래로 갈수록 경로선 다발에서 수직으로 멀어지는 방향이라 겹치지 않는다.
-      arrowLabel(ctx, W, Px + 6, Py + 26, "P (정면 관측점)", C_RED);
+      // P 라벨은 Px를 따라가지 않는 고정 위치(우측 상단, plotTop 위쪽 여백)에 둔다.
+      // 예전엔 Px 기준 상대 위치(Px+6, Py+26)였는데, arrowLabel의 가장자리 clamp가 Px가 커져
+      // 캔버스 폭에 가까워질 때 라벨을 왼쪽(팬 라인 다발 쪽)으로 끌어당겨, 넓은 L·d 조합에서
+      // 라벨 배경이 P로 모이는 경로선과 겹치는 문제가 있었다(R6 리뷰). 이 패널은 가로축이 이미
+      // 압축돼 있어(부제 "가로 방향은 압축" 참고) 라벨이 P의 실제 x를 따라갈 이유가 없다.
+      // plotTop(=60)보다 위쪽은 halfBand 제한상 어떤 슬라이더 조합에서도 경로선이 닿지 않는
+      // 영역이므로, 여기 고정하면 항상 안전하다. 라벨이 더 이상 P를 따라가지 않으므로 어떤 점을
+      // 가리키는지 짧은 점선 안내선으로 이어준다.
+      var pLabelText = "P (정면 관측점)", pLabelX = W - 10, pLabelY = plotTop - 12;
+      ctx.save();
+      ctx.font = "bold 16px system-ui, sans-serif";
+      var pLabelW = ctx.measureText(pLabelText).width;
+      backdrop(ctx, pLabelX - pLabelW - 9, pLabelY - 9, pLabelW + 12, 16);
+      ctx.fillStyle = C_RED; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.fillText(pLabelText, pLabelX, pLabelY);
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = C_RED; ctx.lineWidth = 1; ctx.globalAlpha = 0.55; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(pLabelX - pLabelW / 2, pLabelY + 8); ctx.lineTo(Px, Py - 7); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.restore();
 
       // 경로 길이 수치 2~3개 병기 — 실제 L·d로 계산한 R_n (도선별 색과 무관하게 검정 굵게)
       var rnRanks = [];
@@ -981,11 +998,24 @@
         arrowLabel(ctx, W, wireX + 26, yPix, "R_" + rk + " = " + Rn.toFixed(3) + " m", C_INK);
       });
 
+      var breakX = (wireX + Px) / 2;
+      // 가로축 단절(⫽) 독립 표기 — 아래 L= 캡션의 접두사만으로는 "너무 은근하다"는 리뷰 지적이
+      // 있어(R6), 축 중앙선 부근에 회색 기호를 하나 더 찍어 캡션 글자를 안 읽어도 "여기서 가로축이
+      // 압축/단절됐다"는 게 그림만 보고 읽히게 한다(캡션의 접두사는 그대로 유지 — 둘 다 표시).
+      // y를 cyA에서 살짝 내려(+22) 두는 이유: R_n 라벨들은 전부 y = cyA − rk·spacing(rk≥0)이라
+      // cyA 이상(위쪽)에만 있으므로, cyA 아래쪽에 두면 어떤 슬라이더 조합에서도 R_n 라벨과 겹치지 않는다.
+      ctx.save();
+      ctx.font = "16px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      backdrop(ctx, breakX - 9, cyA + 22 - 10, 18, 20);
+      ctx.fillText("⫽", breakX, cyA + 22);
+      ctx.restore();
+
       // L 표기 + 가로축 단절(⫽) — 세로는 실척이지만 가로(L)는 압축했다는 표시를 같은 줄에 병기
       ctx.save();
       ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
       ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText("⫽  L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", (wireX + Px) / 2, plotBottom + 12);
+      ctx.fillText("⫽  L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", breakX, plotBottom + 12);
       ctx.restore();
     } else {
       ctx.save();
