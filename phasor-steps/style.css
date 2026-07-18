@@ -1,0 +1,5 @@
+body{background:#fff;color:#111;font:16px system-ui,sans-serif}
+.badge{padding:8px 12px;font-weight:700;border-radius:6px}
+.badge.pass{background:#e8f6ec;color:#1e7e34}
+.badge.fail{background:#fdecec;color:#c0392b}
+pre{white-space:pre-wrap}
