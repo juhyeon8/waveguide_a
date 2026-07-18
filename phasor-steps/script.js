@@ -334,6 +334,7 @@
     document.getElementById("lWrap").hidden = state.step !== 2;
     document.getElementById("step1Caption").hidden = state.step !== 1;
     document.getElementById("detail1").hidden = state.step !== 1;
+    document.getElementById("detail2").hidden = state.step !== 2;
     render();
   }
   function render() {
@@ -372,6 +373,7 @@
     document.getElementById("prevBtn").addEventListener("click", function(){ gotoStep(state.step - 1); });
     document.getElementById("nextBtn").addEventListener("click", function(){ gotoStep(state.step + 1); });
     document.getElementById("detail1").addEventListener("toggle", drawDetail);
+    document.getElementById("detail2").addEventListener("toggle", drawDetail2);
     document.getElementById("totalSumChk").addEventListener("change", function(){ state.showTotalSum = this.checked; render(); });
     var cv3 = document.getElementById("canvas3");
     cv3.addEventListener("mousemove", function(e){ if (woodHitTest(e)) showWoodTip(e.clientX, e.clientY); else hideWoodTip(); });
@@ -1021,7 +1023,7 @@
     var s0 = s0Exact(kk, A_WIRE, d);
     var open = nOpenOrders(dl);
 
-    panelTitle(ctx, W, "2단계 (우) 정면 합 — 고정축 색깔 나선", "복소평면 (S0_VIEW=" + S0_VIEW + " 전역 고정) · 정면 진행파 기준 위상");
+    panelTitle(ctx, W, "정면 관측점 P에서의 산란파 합", "복소평면 (S0_VIEW=" + S0_VIEW + " 전역 고정) · 정면 진행파 기준 위상");
     var map = complexPlane(ctx, W, H, 50, 126, S0_VIEW);
     var O = map({ re: 0, im: 0 });
     clipToPlot(ctx, map);
@@ -1072,7 +1074,6 @@
     var sAng = Math.atan2(s0.im, s0.re), sLen = unit * mag(s0);
     var sx = ux + sLen * Math.cos(sAng), sy = uy - sLen * Math.sin(sAng);
     arrow(ctx, ux, uy, sx, sy, C_RED, 3, 9);
-    arrowLabel(ctx, W, sx + 8, sy, "s₀=" + mag(s0).toFixed(3), C_RED);
 
     var err = relErr(end, target);
     var rows = [["L =", state.L.toFixed(2) + " m  (" + (state.L / lamM()).toFixed(1) + " λ)", C_BLUE]];
@@ -1082,11 +1083,38 @@
     rows.push(["나선 오차 =", (err * 100).toFixed(2) + " %"]);
     readout(ctx, W, 52, rows);
 
-    // 참고 막대 — "다 동위상이라면 |I|·(λ/d)" vs "실제 |s₀|" (π배 대비, v5 phasor/script.js drawB L601–624 이식)
+    var s0DefRow = ["s₀ = 모든 도선의 산란 전기장을 P에서 더한 값 (입사파 = 1 기준)", C_INK];
+    if (open > 1) {
+      notes(ctx, W, H, [
+        s0DefRow,
+        ["전파 차수 " + open + "개 — 수렴점이 s₀ 하나로 안 읽힌다", C_RED],
+        ["L을 바꾸면 도착점이 움직인다 (층 2 이음매)", "#555"]
+      ]);
+    } else {
+      notes(ctx, W, H, [
+        s0DefRow,
+        ["전파 차수 1개 (λ > d) — 수렴점 = s₀", "#555"],
+        ["L을 바꿔도 도착점은 제자리 (s₀는 L에 무관)", C_BLUE]
+      ]);
+    }
+  }
+
+  // ===================================================================
+  // 11b. 2단계 접이식 상세 — π배 항등식 |I|·(λ/d) = π·|s₀| (본 화면 메시지와 분리, spec §5)
+  // ===================================================================
+  function drawDetail2() {
+    var det = document.getElementById("detail2");
+    if (!det || det.open !== true) return;   // 닫혀 있으면 그리지 않는다
+    var c = prep(document.getElementById("canvasDetail2"));
+    var ctx = c.ctx, W = c.W, H = c.H;
+    var kk = k(lamM()), d = dM();
     var absI = mag(currentExact(kk, A_WIRE, d));
     var ghostLen = absI * ld();
-    var s0len = mag(s0);
-    var by = (H - 126) + 14, bx = 190, bw = W - bx - 54, bh = 15, rowGap = 28;
+    var s0len = mag(s0Exact(kk, A_WIRE, d));
+
+    panelTitle(ctx, W, "π배 항등식  |I|·(λ/d) = π·|s₀|", "참고용 — 본 화면(정면 관측점 P의 산란파 합)의 메시지와는 별개");
+
+    var by = 66, bx = 190, bw = W - bx - 54, bh = 15, rowGap = 28;
     var vmax = ghostLen * 1.02;
     ctx.save();
     ctx.font = "bold 16px system-ui, sans-serif"; ctx.textBaseline = "middle";
@@ -1105,21 +1133,9 @@
     ctx.textAlign = "right"; ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
     ctx.fillText("← " + (ghostLen / s0len).toFixed(2) + "배 (= π)", W - 8, by + rowGap + 30);
     ctx.restore();
-
-    if (open > 1) {
-      notes(ctx, W, H, [
-        ["전파 차수 " + open + "개 — 수렴점이 s₀ 하나로 안 읽힌다", C_RED],
-        ["L을 바꾸면 도착점이 움직인다 (층 2 이음매)", "#555"]
-      ]);
-    } else {
-      notes(ctx, W, H, [
-        ["전파 차수 1개 (λ > d) — 수렴점 = s₀", "#555"],
-        ["L을 바꿔도 도착점은 제자리 (s₀는 L에 무관)", C_BLUE]
-      ]);
-    }
   }
 
-  function drawStep2() { drawStep2Left(); drawStep2Right(); }
+  function drawStep2() { drawStep2Left(); drawStep2Right(); drawDetail2(); }
 
   // ===================================================================
   // 12. 3단계 — λ/d에 따른 |I|·|s₀|·T 곡선 + 우드 문턱 (v6 §4, v5 buildCurves/drawT/plotCurve 이식)
