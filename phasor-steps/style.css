@@ -30,6 +30,8 @@ pre{white-space:pre-wrap}
 .stage[hidden]{display:none}
 .stage .col{flex:1;min-width:0}
 canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid #D5DBE1;border-radius:6px}
+.chkRow{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:15px;font-weight:600;color:#333}
+.chkRow input{accent-color:#2471A3}
 
 /* ── 캡션 (v6 §2, 패널 하단) ── */
 .caption{max-width:1258px;margin:10px 0 0;color:#333;font-size:16px;line-height:1.55}

@@ -312,7 +312,7 @@
   // ===================================================================
   // 5. 상태 + 라우터 + 조작부 바인딩
   // ===================================================================
-  var state = { lamMM: 60, dMM: 3, N: 200, L: 1.0, step: 1 };
+  var state = { lamMM: 60, dMM: 3, N: 200, L: 1.0, step: 1, showTotalSum: false };
   function lamM() { return state.lamMM / 1000; }
   function dM()   { return state.dMM / 1000; }
   function ld()   { return state.lamMM / state.dMM; }
@@ -372,6 +372,7 @@
     document.getElementById("prevBtn").addEventListener("click", function(){ gotoStep(state.step - 1); });
     document.getElementById("nextBtn").addEventListener("click", function(){ gotoStep(state.step + 1); });
     document.getElementById("detail1").addEventListener("toggle", drawDetail);
+    document.getElementById("totalSumChk").addEventListener("change", function(){ state.showTotalSum = this.checked; render(); });
     var cv3 = document.getElementById("canvas3");
     cv3.addEventListener("mousemove", function(e){ if (woodHitTest(e)) showWoodTip(e.clientX, e.clientY); else hideWoodTip(); });
     cv3.addEventListener("mouseleave", hideWoodTip);
@@ -739,10 +740,19 @@
     pts.push(cAdd({ re: 1, im: 0 }, cMul(I, cAdd(P[N], residual))));   // = 원점(0,0), 기계 정밀도로 닫힘
 
     panelTitle(ctx, W, "1단계 (우) 실제 전기장의 닫힌 다각형", "복소평면 (무차원, 축 거의 고정) · 입사파 = 1 기준");
+
+    // 상시 표기값(§7)은 위쪽 여백 안에 그린다 — 그래프 격자와 겹치지 않게.
+    readout(ctx, W, 34, [
+      ["λ/d =", ld().toFixed(2), C_RED],
+      ["N =", String(N)],
+      ["|I| =", mag(I).toFixed(4), C_RED]
+    ]);
+
     // 근고정 프레임 (critical fact #4: fitRadius 금지·view={} 버그 회피).
     // 프리셋 6종 전부 maxpt=1.000(입사점이 지배) → R=1.6이면 여유 있게 담고도 다각형이 더 크게 보인다.
+    // top을 105로 밀어 위쪽 readout과 그리드가 겹치지 않게 한다.
     var R = 1.6;
-    var map = complexPlane(ctx, W, H, 55, 110, R);
+    var map = complexPlane(ctx, W, H, 105, 110, R);
     var O = map({ re: 0, im: 0 });
     clipToPlot(ctx, map);
 
@@ -769,30 +779,34 @@
     var pSelf = map(pts[1]);
     arrow(ctx, pInc[0], pInc[1], pSelf[0], pSelf[1], C_BLUE, 3, 10);
 
-    // 잔여 (옅은 회색, pts[N+1]→원점) — 문턱 부근이면 커진 채로 그대로 드러낸다
+    // 잔여 (옅은 회색, pts[N+1]→원점) — 문턱 부근이면 커진 채로 그대로 드러낸다.
+    // 체크박스와 무관하게 항상 그린다 — N 슬라이더 반응·문턱-정직성의 핵심이라 가리지 않는다.
     var pLast = map(pts[N + 1]);
     var pClose = map(pts[N + 2]);
+    var residualMag = mag(cMul(I, residual));
     arrow(ctx, pLast[0], pLast[1], pClose[0], pClose[1], "rgba(138,145,153,0.65)", 2.6, 9);
 
-    ctx.restore();   // 클리핑 해제 — 아래 라벨·수치·범례는 잘리면 안 된다
+    // 이웃 전체 합 오버레이 (체크박스 ON일 때만) — 자기항 끝점(pts[1]) → 원점, 점선 진회색.
+    // = I·(D_exact − Z_self). 입사(1) + I·Z_self + 이 값 = 1 + I·D_exact = 0 이므로,
+    // 사슬을 하나하나 안 보고도 "이웃 전체가 만드는 몫"을 화살표 하나로 보여준다.
+    // 기존 사슬 위에 겹쳐 그리되(그리기 순서상 위) 사슬 자체는 지우지 않는다.
+    if (state.showTotalSum) {
+      ctx.save();
+      ctx.setLineDash([6, 4]);
+      arrow(ctx, pSelf[0], pSelf[1], O[0], O[1], "#444444", 2.6, 9);
+      ctx.restore();
+    }
 
-    // 라벨은 클리핑 밖에서 그려 플롯 경계에 잘리지 않게 한다
-    arrowLabel(ctx, W, (O[0] + pInc[0]) / 2, O[1] - 12, "입사파 (=1)", C_GREY);
-    arrowLabel(ctx, W, (pInc[0] + pSelf[0]) / 2, (pInc[1] + pSelf[1]) / 2 - 10,
-      "도선 자신이 만든 전기장 (I × self term)", C_BLUE);
-    arrowLabel(ctx, W, (pLast[0] + pClose[0]) / 2, (pLast[1] + pClose[1]) / 2 + 12,
-      "먼 이웃들의 나머지 (|Δ|=" + mag(cMul(I, residual)).toFixed(4) + ")", "#8A9199");
+    ctx.restore();   // 클리핑 해제 — 아래 범례는 잘리면 안 된다
 
-    readout(ctx, W, 57, [
-      ["λ/d =", ld().toFixed(2), C_RED],
-      ["N =", String(N)],
-      ["|I| =", mag(I).toFixed(4), C_RED]
-    ]);
-
+    // 좌하단 범례 — 색 스와치 + 텍스트. 그래프 안 화살표 옆 라벨은 여기로 옮겼다
+    // (색-램프 라운드가 지적한 옛 주황 하드코딩 범례를 실제 wireColor 값으로 갱신).
+    var rampSwatch = wireColor(Math.round(WIRE_PAIRS_SHOWN / 2), WIRE_PAIRS_SHOWN);
     notes(ctx, W, H, [
-      ["■ 입사파(회색) → 자체 산란(파랑) → 이웃 사슬(주황, rank별)", C_INK],
-      ["■ 옅은 회색 = 먼 이웃들의 나머지(잔여) — N↑ 시 줄어듦", "#8A9199"],
-      ["끝점이 원점으로 돌아옴 = 도선 표면 전기장 0", "#555"]
+      ["■ 입사파 (=1)", C_GREY],
+      ["■ 도선 자신이 만든 전기장 (I × self term)", C_BLUE],
+      ["■ 이웃 사슬 (rank별, 가까울수록 진한 적갈 → 멀수록 노랑)", rampSwatch],
+      ["■ 먼 이웃들의 나머지  |Δ| = " + residualMag.toFixed(4), "rgba(138,145,153,0.65)"]
     ]);
   }
 
