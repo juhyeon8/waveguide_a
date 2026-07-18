@@ -904,7 +904,7 @@
     var c = prep(document.getElementById("canvas2L"));
     var ctx = c.ctx, W = c.W, H = c.H;
     panelTitle(ctx, W, "2단계 (좌) 실공간 — 정면 관측점 P까지 경로",
-      "왼쪽 입사 영역: λ 실척 / 오른쪽 경로 영역: 압축");
+      "왼쪽: 평면파 입사(파면 간격 = λ, 치수 참조) · 오른쪽: P까지 경로(압축, 실척 아님)");
 
     var plotTop = 60, plotBottom = H - 90;
     var cyA = (plotTop + plotBottom) / 2;
@@ -921,37 +921,39 @@
     var nShownActual = Math.min(nShown, rankMax);              // 밴드 안에 실제로 들어가는 이웃 쌍 수
     var dotR = Math.min(5, 0.42 * spacing);                    // 1단계와 동일한 조밀 축소 규칙
 
-    // 평면파 입사 (v6 R7): 1단계(좌)와 동일한 공식 — 파면 간격(px) = λ(mm) × PX_PER_MM —을 재사용해
-    // 실척으로 그린다(이전엔 [30,60,90,120] 고정 픽셀이라 λ 슬라이더를 움직여도 변화가 없던 버그).
-    // 파면은 wireX 왼쪽 입사 밴드([waveBandLeft, wireX]) 안에서만 그린다. 이 패널은 오른쪽에 경로선
-    // 영역을 내줘야 해서 밴드가 1단계보다 훨씬 좁다 — λ가 커지면 1단계보다 훨씬 쉽게 파면이 0개가
-    // 될 수 있다. 0개면(한 파장도 안 들어가면) 강제로 하나 그리거나 다시 맞추지(rescale) 않고,
-    // 대신 안내 문구로 그 사실을 그대로 보여준다(§6 확정 — 축척 왜곡보다 "안 보임"이 낫다).
+    // 평면파 입사 (v9 격하): 이 패널은 오른쪽에 경로선 영역을 내줘야 해서 입사 밴드가 1단계보다
+    // 훨씬 좁다 — λ 실척으로 그리면(이전 버전) 슬라이더 범위의 상당 부분에서 "파장이 화면보다 김"
+    // 안내 문구만 뜨는 문제가 있었다. 이 패널의 파면은 "입사파가 평면파"라는 사실만 상기시키면
+    // 충분하므로, λ·d와 무관하게 화면상 고정 위치·고정 간격(WAVE_PX)으로 정확히 3개만 그린다.
+    // 실제 λ 값은 파면 사이 치수선(↔)+숫자 라벨로 병기한다 — 선 길이는 항상 WAVE_PX 그대로 고정,
+    // 숫자만 state.lamMM을 그대로 읽어 갱신된다(좁은 패널에서 실척을 포기한 대신 값은 명시).
+    var WAVE_PX = 40, WAVE_COUNT = 3;
+    var waveXs = [];
+    for (var wi = 0; wi < WAVE_COUNT; wi++) waveXs.push(wireX - 40 - wi * WAVE_PX);
     ctx.save();
     ctx.strokeStyle = "#C3C9CF"; ctx.lineWidth = 1.4; ctx.setLineDash([2, 5]);
-    var waveSpacing = state.lamMM * PX_PER_MM;
-    var waveBandLeft = 16;
-    var waveDrawn = false;
-    for (var wx = wireX - waveSpacing; wx >= waveBandLeft; wx -= waveSpacing) {
+    waveXs.forEach(function (wx) {
       ctx.beginPath(); ctx.moveTo(wx, plotTop); ctx.lineTo(wx, plotBottom); ctx.stroke();
-      waveDrawn = true;
-    }
+    });
     ctx.setLineDash([]);
     ctx.restore();
-    if (!waveDrawn) {
-      // 문구가 좁은 입사 밴드보다 넓어 R_0 라벨(y=cyA)·경로선 다발과 겹치지 않도록 em-dash에서
-      // 두 줄로 나눠 그린다(내용은 스펙 문구와 동일, 배치만 두 줄). cyA보다 아래(R_n 라벨은 전부
-      // y≤cyA라 아래쪽은 항상 비어 있다)에 둔다.
-      var tooLongLine1 = "λ = " + state.lamMM + " mm > 화면 폭", tooLongLine2 = "파장이 화면보다 김";
-      ctx.save();
-      ctx.font = "bold 16px system-ui, sans-serif";
-      var tooLongW = Math.max(ctx.measureText(tooLongLine1).width, ctx.measureText(tooLongLine2).width);
-      backdrop(ctx, waveBandLeft - 4, cyA + 26, tooLongW + 8, 46);
-      ctx.fillStyle = C_GREY; ctx.textAlign = "left"; ctx.textBaseline = "top";
-      ctx.fillText(tooLongLine1, waveBandLeft, cyA + 30);
-      ctx.fillText(tooLongLine2, waveBandLeft, cyA + 50);
-      ctx.restore();
-    }
+
+    // λ 치수선 — 파면 3개 중 가운데·오른쪽(=waveXs[0], waveXs[1]) 사이에 그린다. 화살표 두 개를
+    // 가운데 점에서 양 끝으로 쏘아 double-headed 치수선을 만든다(arrow() 재사용).
+    var dimX1 = waveXs[0], dimX2 = waveXs[1], dimY = cyA + 60, dimMidX = (dimX1 + dimX2) / 2;
+    ctx.save();
+    arrow(ctx, dimMidX, dimY, dimX1, dimY, C_INK, 1.4, 7);
+    arrow(ctx, dimMidX, dimY, dimX2, dimY, C_INK, 1.4, 7);
+    ctx.restore();
+    ctx.save();
+    ctx.font = "bold 16px system-ui, sans-serif";
+    var lamLabel = "λ = " + state.lamMM + " mm";
+    var lamLabelW = ctx.measureText(lamLabel).width;
+    backdrop(ctx, dimMidX - lamLabelW / 2 - 4, dimY - 24, lamLabelW + 8, 18);
+    ctx.fillStyle = C_INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText(lamLabel, dimMidX, dimY - 8);
+    ctx.restore();
+
     arrow(ctx, 16, plotTop + 16, 155, plotTop + 16, C_GREY, 3, 10);
     ctx.save();
     ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
@@ -1091,6 +1093,7 @@
     } else {
       noteRows.push(["L이 너무 가까워 경로선·P·R_n 표시를 생략함", "#555"]);
     }
+    noteRows.push(["회색 점선 = 입사 평면파의 파면 (간격 = 파장 λ)", C_GREY]);
     notes(ctx, W, H, noteRows);
   }
 
