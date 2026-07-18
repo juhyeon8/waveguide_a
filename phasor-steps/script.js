@@ -816,8 +816,244 @@
       ["■ D = Z_self + S      ⊕ Floquet 정확값 (점선)", C_INK]
     ]);
   }
-  function drawStep2(){ var c=prep(document.getElementById("canvas2L")); panelTitle(c.ctx,c.W,"2단계 (좌) 경로","stub");
-                        var r=prep(document.getElementById("canvas2R")); panelTitle(r.ctx,r.W,"2단계 (우) 나선","stub"); }
+  // ===================================================================
+  // 10. 2단계 — 왼쪽: 실공간 경로선 (정면 관측점 P까지 도선별 경로) (v6 §3 왼쪽)
+  // ===================================================================
+  var L_GUARD_LAMBDAS = 5;   // "정면 원거리 관측점" 그림이 성립하는 하한 — a few λ
+
+  function drawStep2Left() {
+    var c = prep(document.getElementById("canvas2L"));
+    var ctx = c.ctx, W = c.W, H = c.H;
+    panelTitle(ctx, W, "2단계 (좌) 실공간 — 정면 관측점 P까지 경로",
+      "그림은 개략도(실제 축척 아님) · 바깥 도선일수록 P까지 경로가 길다 — 실제 차이는 R_n 수치 참조");
+
+    var plotTop = 60, plotBottom = H - 90;
+    var cyA = (plotTop + plotBottom) / 2;
+    var wireX = 200, spacing = 20, nShown = WIRE_PAIRS_SHOWN;
+    var Lm = state.L, dm = dM(), lam = lamM();
+    var guardL = L_GUARD_LAMBDAS * lam;
+
+    // 평면파 입사 (1단계 왼쪽과 동일 idiom, wireX 이동에 맞춰 위치만 조정)
+    ctx.save();
+    ctx.strokeStyle = "#C3C9CF"; ctx.lineWidth = 1.4; ctx.setLineDash([2, 5]);
+    [30, 60, 90, 120].forEach(function (x) {
+      ctx.beginPath(); ctx.moveTo(x, plotTop); ctx.lineTo(x, plotBottom); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    ctx.restore();
+    arrow(ctx, 16, plotTop + 16, 155, plotTop + 16, C_GREY, 3, 10);
+    ctx.save();
+    ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText("평면파 입사", 16, plotTop + 6);
+    ctx.restore();
+
+    if (Lm >= guardL) {
+      // P까지 픽셀거리 — 실제 축척 아님(L은 m, d는 mm 단위라 한 그림에 동시에 맞출 수 없다).
+      // 슬라이더 범위를 화면폭에 눌러 담아 "L이 커질수록 경로선이 나란해진다"는 정성적 느낌만 준다.
+      // 실제 길이값은 아래 R_n 수치로 병기한다.
+      var pixelL = 260 + (Lm - 0.3) / (3 - 0.3) * 120;
+      var Px = wireX + pixelL, Py = cyA;
+
+      // 경로선 (먼 것부터 그려 가까운(진한) 색이 위에 오게)
+      ctx.save();
+      ctx.lineWidth = 1.3;
+      for (var rank = nShown; rank >= 0; rank--) {
+        ctx.strokeStyle = wireColor(rank, nShown);
+        if (rank === 0) {
+          ctx.beginPath(); ctx.moveTo(wireX, cyA); ctx.lineTo(Px, Py); ctx.stroke();
+        } else {
+          ctx.beginPath(); ctx.moveTo(wireX, cyA - rank * spacing); ctx.lineTo(Px, Py); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(wireX, cyA + rank * spacing); ctx.lineTo(Px, Py); ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      // 관측점 P
+      ctx.save();
+      ctx.fillStyle = C_RED;
+      ctx.beginPath(); ctx.arc(Px, Py, 6, 0, TWO_PI); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(Px, Py, 6, 0, TWO_PI); ctx.stroke();
+      ctx.restore();
+      arrowLabel(ctx, W, Px + 10, Py - 4, "P (정면 관측점)", C_RED);
+
+      // 경로 길이 수치 2~3개 병기 — 실제 L·d로 계산한 R_n (도선별 색과 무관하게 검정 굵게)
+      [0, Math.round(nShown / 2), nShown].forEach(function (rk) {
+        var Rn = Math.hypot(Lm, rk * dm);
+        var yPix = cyA - rk * spacing;
+        arrowLabel(ctx, W, wireX + 26, yPix, "R_" + rk + " = " + Rn.toFixed(3) + " m", C_INK);
+      });
+
+      // L 표기
+      ctx.save();
+      ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText("L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", (wireX + Px) / 2, plotBottom + 12);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.font = "bold 18px system-ui, sans-serif";
+      var msg = "너무 가까움: 이 그림 부적용";
+      var mw = ctx.measureText(msg).width;
+      backdrop(ctx, W / 2 - mw / 2 - 8, cyA - 26, mw + 16, 30);
+      ctx.fillStyle = C_RED; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(msg, W / 2, cyA - 11);
+      ctx.font = "13px system-ui, sans-serif";
+      var sub = "(L = " + Lm.toFixed(2) + " m < " + L_GUARD_LAMBDAS + "λ = " + guardL.toFixed(2) + " m)";
+      var sw = ctx.measureText(sub).width;
+      backdrop(ctx, W / 2 - sw / 2 - 6, cyA + 4, sw + 12, 18);
+      ctx.fillStyle = "#8A9199";
+      ctx.fillText(sub, W / 2, cyA + 13);
+      ctx.restore();
+    }
+
+    // 표시 범위 밖 이웃 — 점점이 암시
+    ctx.save();
+    ctx.fillStyle = "#B9BEC4";
+    [1, 2].forEach(function (j) {
+      var r = nShown + j, al = 0.5 - j * 0.18;
+      ctx.globalAlpha = Math.max(0.12, al);
+      [-1, 1].forEach(function (s) {
+        ctx.beginPath(); ctx.arc(wireX, cyA + s * r * spacing, 3, 0, TWO_PI); ctx.fill();
+      });
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // 도선 점 — 이웃(색) + 가운데 A(굵은 검정) — 경로선/경고 위에 그려 항상 보이게
+    for (var n = 1; n <= nShown; n++) {
+      ctx.fillStyle = wireColor(n, nShown);
+      ctx.beginPath(); ctx.arc(wireX, cyA - n * spacing, 5, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA + n * spacing, 5, 0, TWO_PI); ctx.fill();
+    }
+    ctx.fillStyle = C_INK;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.stroke();
+
+    notes(ctx, W, H, [
+      ["● 도선(가운데 A 굵은 검정, 이웃 진한→옅은 주황)", C_INK],
+      ["경로선 색 = 오른쪽 나선과 동일 색 문법(거리→색)", "rgba(230,126,34,0.85)"],
+      ["바깥 도선일수록 P까지 경로가 길다 (R_n 수치 참조)", "#555"]
+    ]);
+  }
+
+  // ===================================================================
+  // 11. 2단계 — 오른쪽: 고정축 색깔 나선 + 수렴점 + 인셋 + π배 대비 (v6 §3 오른쪽)
+  // ===================================================================
+  var S0_VIEW = 1.152;   // 전역 고정 축 반경(설계 결정) — [0b] 프리셋 6종 max|s₀|=1.0013 × 1.15 (사용자 확정)
+
+  function drawStep2Right() {
+    var c = prep(document.getElementById("canvas2R"));
+    var ctx = c.ctx, W = c.W, H = c.H;
+    var kk = k(lamM()), d = dM(), dl = state.dMM / state.lamMM;   // dl = d/λ (★ λ/d 아님 — 라벨 뒤집힘 함정)
+    var nMax = CORNU_HALF;
+    var pts = cornuPartials(kk, A_WIRE, d, state.L, nMax);
+    var end = pts[pts.length - 1];
+    var target = forwardExact(kk, A_WIRE, d, state.L);
+    var s0 = s0Exact(kk, A_WIRE, d);
+    var open = nOpenOrders(dl);
+
+    panelTitle(ctx, W, "2단계 (우) 정면 합 — 고정축 색깔 나선", "복소평면 (S0_VIEW=" + S0_VIEW + " 전역 고정) · 정면 진행파 기준 위상");
+    var map = complexPlane(ctx, W, H, 50, 126, S0_VIEW);
+    var O = map({ re: 0, im: 0 });
+    clipToPlot(ctx, map);
+
+    // 나선 — 가운데(랭크0)부터 바깥일수록 옅은 색. 근거리(±WIRE_PAIRS_SHOWN)는 낱개, 원거리는 배치 경로(성능).
+    ctx.save();
+    ctx.lineWidth = 1.5; ctx.lineJoin = "round";
+    function farBatch(iStart, iEnd) {
+      if (iEnd <= iStart) return;
+      ctx.strokeStyle = wireColor(WIRE_PAIRS_SHOWN + 1, WIRE_PAIRS_SHOWN);   // rank>WIRE_PAIRS_SHOWN은 색이 포화되어 전부 동일
+      ctx.beginPath();
+      for (var i = iStart; i <= iEnd; i++) {
+        var p = map(pts[i]);
+        if (i === iStart) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+      }
+      ctx.stroke();
+    }
+    farBatch(0, nMax - WIRE_PAIRS_SHOWN);
+    farBatch(nMax + WIRE_PAIRS_SHOWN + 1, 2 * nMax + 1);
+    for (var i2 = nMax - WIRE_PAIRS_SHOWN; i2 <= nMax + WIRE_PAIRS_SHOWN; i2++) {
+      var n2 = i2 - nMax, rank2 = Math.abs(n2);
+      var p0 = map(pts[i2]), p1 = map(pts[i2 + 1]);
+      ctx.strokeStyle = wireColor(rank2, WIRE_PAIRS_SHOWN);
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+    }
+    ctx.restore();   // 나선 스타일 save 해제 (아직 clipToPlot의 클립은 살아있음)
+    ctx.restore();   // 클리핑 해제 — 표적 라벨이 박스 경계 근처여도 잘리지 않게 여기서 미리 푼다
+
+    // 결과 벡터(원점→나선 끝점, 검정) + 수렴점 표적
+    // λ>d면 수렴점 = s₀. λ<d면 여러 차수가 섞인 G∞이고 s₀가 아니다 (혼동 금지).
+    var pe = map(end);
+    arrow(ctx, O[0], O[1], pe[0], pe[1], C_INK, 2.4, 9);
+    dottedTarget(ctx, W, map(target), C_RED, open > 1 ? "수렴점 G∞ (≠ s₀)" : "수렴점 = s₀");
+
+    // 인셋 — 입사파(회색, 길이=1 고정눈금) vs s₀(빨강) 나란히. λ≫d에서 s₀가 입사파와
+    // 크기 비슷·방향 반대에 가까워짐을 보여준다.
+    var ux = 100, uy = 96, unit = 62;
+    ctx.save();
+    ctx.font = "bold 13px system-ui, sans-serif";
+    var headTxt = "인셋: 입사파(회색·=1)  vs  s₀(빨강)";
+    var hw = ctx.measureText(headTxt).width;
+    backdrop(ctx, ux - 16, uy - 40, hw + 10, 18);
+    ctx.fillStyle = C_INK; ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText(headTxt, ux - 11, uy - 38);
+    ctx.restore();
+    arrow(ctx, ux, uy, ux + unit, uy, C_GREY, 3, 9);
+    arrowLabel(ctx, W, ux + unit + 8, uy, "=1", C_GREY);
+    var sAng = Math.atan2(s0.im, s0.re), sLen = unit * mag(s0);
+    var sx = ux + sLen * Math.cos(sAng), sy = uy - sLen * Math.sin(sAng);
+    arrow(ctx, ux, uy, sx, sy, C_RED, 3, 9);
+    arrowLabel(ctx, W, sx + 8, sy, "s₀=" + mag(s0).toFixed(3), C_RED);
+
+    var err = relErr(end, target);
+    var rows = [["L =", state.L.toFixed(2) + " m  (" + (state.L / lamM()).toFixed(1) + " λ)", C_BLUE]];
+    if (open > 1) rows.push(["|G∞| =", mag(target).toFixed(4), C_INK]);
+    rows.push(["|s₀| =", mag(s0).toFixed(4), C_RED]);
+    rows.push(["전파 차수 =", String(open)]);
+    rows.push(["나선 오차 =", (err * 100).toFixed(2) + " %"]);
+    readout(ctx, W, 52, rows);
+
+    // 참고 막대 — "다 동위상이라면 |I|·(λ/d)" vs "실제 |s₀|" (π배 대비, v5 phasor/script.js drawB L601–624 이식)
+    var absI = mag(currentExact(kk, A_WIRE, d));
+    var ghostLen = absI * ld();
+    var s0len = mag(s0);
+    var by = (H - 126) + 10, bx = 162, bw = W - bx - 54, bh = 15;
+    var vmax = ghostLen * 1.02;
+    ctx.save();
+    ctx.font = "12px system-ui, sans-serif"; ctx.textBaseline = "middle";
+    ctx.textAlign = "right"; ctx.fillStyle = "#8A8A8A";
+    ctx.fillText("다 동위상이라면 |I|·(λ/d)", bx - 6, by + bh / 2);
+    ctx.fillStyle = "#D8D8D8"; ctx.fillRect(bx, by, bw * (ghostLen / vmax), bh);
+    ctx.textAlign = "left"; ctx.fillStyle = "#8A8A8A";
+    ctx.fillText(ghostLen.toFixed(3), bx + bw * (ghostLen / vmax) + 5, by + bh / 2);
+
+    ctx.textAlign = "right"; ctx.fillStyle = C_RED;
+    ctx.fillText("실제 정면 진폭 |s₀|", bx - 6, by + 22 + bh / 2);
+    ctx.fillStyle = C_RED; ctx.fillRect(bx, by + 22, bw * (s0len / vmax), bh);
+    ctx.textAlign = "left";
+    ctx.fillText(s0len.toFixed(3), bx + bw * (s0len / vmax) + 5, by + 22 + bh / 2);
+
+    ctx.textAlign = "right"; ctx.font = "bold 13px system-ui, sans-serif"; ctx.fillStyle = C_INK;
+    ctx.fillText("← " + (ghostLen / s0len).toFixed(2) + "배 (= π)", W - 8, by + 44);
+    ctx.restore();
+
+    if (open > 1) {
+      notes(ctx, W, H, [
+        ["전파 차수 " + open + "개 — 수렴점이 s₀ 하나로 안 읽힌다", C_RED],
+        ["L을 바꾸면 도착점이 움직인다 (층 2 이음매)", "#555"]
+      ]);
+    } else {
+      notes(ctx, W, H, [
+        ["전파 차수 1개 (λ > d) — 수렴점 = s₀", "#555"],
+        ["L을 바꿔도 도착점은 제자리 (s₀는 L에 무관)", C_BLUE]
+      ]);
+    }
+  }
+
+  function drawStep2() { drawStep2Left(); drawStep2Right(); }
   function drawStep3(){ var c=prep(document.getElementById("canvas3")); panelTitle(c.ctx,c.W,"3단계 곡선","stub"); }
 
   // ===================================================================
