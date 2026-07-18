@@ -932,11 +932,14 @@
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.stroke();
 
-    notes(ctx, W, H, [
-      ["● 도선(가운데 A 굵은 검정, 이웃 진한→옅은 주황)", C_INK],
-      ["경로선 색 = 오른쪽 나선과 동일 색 문법(거리→색)", "rgba(230,126,34,0.85)"],
-      ["바깥 도선일수록 P까지 경로가 길다 (R_n 수치 참조)", "#555"]
-    ]);
+    var noteRows = [["● 도선(가운데 A 굵은 검정, 이웃 진한→옅은 주황)", C_INK]];
+    if (Lm >= guardL) {
+      noteRows.push(["경로선 색 = 오른쪽 나선과 동일 색 문법(거리→색)", "rgba(230,126,34,0.85)"]);
+      noteRows.push(["바깥 도선일수록 P까지 경로가 길다 (R_n 수치 참조)", "#555"]);
+    } else {
+      noteRows.push(["L이 너무 가까워 경로선·P·R_n 표시를 생략함", "#555"]);
+    }
+    notes(ctx, W, H, noteRows);
   }
 
   // ===================================================================
@@ -994,7 +997,7 @@
     // 크기 비슷·방향 반대에 가까워짐을 보여준다.
     var ux = 100, uy = 96, unit = 62;
     ctx.save();
-    ctx.font = "bold 13px system-ui, sans-serif";
+    ctx.font = "bold 16px system-ui, sans-serif";
     var headTxt = "인셋: 입사파(회색·=1)  vs  s₀(빨강)";
     var hw = ctx.measureText(headTxt).width;
     backdrop(ctx, ux - 16, uy - 40, hw + 10, 18);
@@ -1020,10 +1023,10 @@
     var absI = mag(currentExact(kk, A_WIRE, d));
     var ghostLen = absI * ld();
     var s0len = mag(s0);
-    var by = (H - 126) + 10, bx = 162, bw = W - bx - 54, bh = 15;
+    var by = (H - 126) + 14, bx = 190, bw = W - bx - 54, bh = 15, rowGap = 28;
     var vmax = ghostLen * 1.02;
     ctx.save();
-    ctx.font = "12px system-ui, sans-serif"; ctx.textBaseline = "middle";
+    ctx.font = "bold 16px system-ui, sans-serif"; ctx.textBaseline = "middle";
     ctx.textAlign = "right"; ctx.fillStyle = "#8A8A8A";
     ctx.fillText("다 동위상이라면 |I|·(λ/d)", bx - 6, by + bh / 2);
     ctx.fillStyle = "#D8D8D8"; ctx.fillRect(bx, by, bw * (ghostLen / vmax), bh);
@@ -1031,13 +1034,13 @@
     ctx.fillText(ghostLen.toFixed(3), bx + bw * (ghostLen / vmax) + 5, by + bh / 2);
 
     ctx.textAlign = "right"; ctx.fillStyle = C_RED;
-    ctx.fillText("실제 정면 진폭 |s₀|", bx - 6, by + 22 + bh / 2);
-    ctx.fillStyle = C_RED; ctx.fillRect(bx, by + 22, bw * (s0len / vmax), bh);
+    ctx.fillText("실제 정면 진폭 |s₀|", bx - 6, by + rowGap + bh / 2);
+    ctx.fillStyle = C_RED; ctx.fillRect(bx, by + rowGap, bw * (s0len / vmax), bh);
     ctx.textAlign = "left";
-    ctx.fillText(s0len.toFixed(3), bx + bw * (s0len / vmax) + 5, by + 22 + bh / 2);
+    ctx.fillText(s0len.toFixed(3), bx + bw * (s0len / vmax) + 5, by + rowGap + bh / 2);
 
-    ctx.textAlign = "right"; ctx.font = "bold 13px system-ui, sans-serif"; ctx.fillStyle = C_INK;
-    ctx.fillText("← " + (ghostLen / s0len).toFixed(2) + "배 (= π)", W - 8, by + 44);
+    ctx.textAlign = "right"; ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
+    ctx.fillText("← " + (ghostLen / s0len).toFixed(2) + "배 (= π)", W - 8, by + rowGap + 30);
     ctx.restore();
 
     if (open > 1) {
