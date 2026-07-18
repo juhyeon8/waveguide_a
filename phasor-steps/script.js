@@ -904,13 +904,22 @@
     var c = prep(document.getElementById("canvas2L"));
     var ctx = c.ctx, W = c.W, H = c.H;
     panelTitle(ctx, W, "2단계 (좌) 실공간 — 정면 관측점 P까지 경로",
-      "그림은 개략도(실제 축척 아님) · 바깥 도선일수록 P까지 경로가 길다 — 실제 차이는 R_n 수치 참조");
+      "세로 간격은 실척, 가로 방향은 압축(실척 아님)");
 
     var plotTop = 60, plotBottom = H - 90;
     var cyA = (plotTop + plotBottom) / 2;
-    var wireX = 200, spacing = 20, nShown = WIRE_PAIRS_SHOWN;
+    var wireX = 200, nShown = WIRE_PAIRS_SHOWN;
     var Lm = state.L, dm = dM(), lam = lamM();
     var guardL = L_GUARD_LAMBDAS * lam;
+
+    // 세로축 고정 실척(v6 R6): 1단계(좌)와 동일한 PX_PER_MM·공식 재사용 — 같은 d면 두 패널의
+    // 도선 간격이 픽셀 단위로 똑같이 보인다. 가로(P까지 거리)는 L(m)·d(mm) 단위가 달라 한 그림에
+    // 같은 축척으로 못 담으므로 압축한 채 유지하고, 아래 ⫽ 표기로 "실척 아님"을 명시한다.
+    var spacing = state.dMM * PX_PER_MM;
+    var halfBand = (plotBottom - plotTop) / 2;
+    var rankMax = Math.max(0, Math.floor(halfBand / spacing));
+    var nShownActual = Math.min(nShown, rankMax);              // 밴드 안에 실제로 들어가는 이웃 쌍 수
+    var dotR = Math.min(5, 0.42 * spacing);                    // 1단계와 동일한 조밀 축소 규칙
 
     // 평면파 입사 (1단계 왼쪽과 동일 idiom, wireX 이동에 맞춰 위치만 조정)
     ctx.save();
@@ -934,10 +943,11 @@
       var pixelL = 260 + (Lm - 0.3) / (3 - 0.3) * 120;
       var Px = wireX + pixelL, Py = cyA;
 
-      // 경로선 (먼 것부터 그려 가까운(진한) 색이 위에 오게)
+      // 경로선 (먼 것부터 그려 가까운(진한) 색이 위에 오게) — 색 램프 정규화 total은 1단계와
+      // 동일하게 WIRE_PAIRS_SHOWN 고정(= nShown)이라, rank번호가 같으면 두 패널에서 색이 일치한다.
       ctx.save();
       ctx.lineWidth = 1.3;
-      for (var rank = nShown; rank >= 0; rank--) {
+      for (var rank = nShownActual; rank >= 0; rank--) {
         ctx.strokeStyle = wireColor(rank, nShown);
         if (rank === 0) {
           ctx.beginPath(); ctx.moveTo(wireX, cyA); ctx.lineTo(Px, Py); ctx.stroke();
@@ -955,20 +965,27 @@
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.arc(Px, Py, 6, 0, TWO_PI); ctx.stroke();
       ctx.restore();
-      arrowLabel(ctx, W, Px + 10, Py - 4, "P (정면 관측점)", C_RED);
+      // 라벨은 P 아래쪽에 둔다 — 오른쪽(같은 높이)은 경로선들이 P로 수렴하는 다발과 겹치고,
+      // 캔버스 폭이 좁아 우측 여백이 부족할 때 좌측(자동 clamp)으로 밀리면 그 다발 위에 얹히던 문제가 있었다.
+      // 아래쪽은 P 지점 기준 아래로 갈수록 경로선 다발에서 수직으로 멀어지는 방향이라 겹치지 않는다.
+      arrowLabel(ctx, W, Px + 6, Py + 26, "P (정면 관측점)", C_RED);
 
       // 경로 길이 수치 2~3개 병기 — 실제 L·d로 계산한 R_n (도선별 색과 무관하게 검정 굵게)
-      [0, Math.round(nShown / 2), nShown].forEach(function (rk) {
+      var rnRanks = [];
+      [0, Math.round(nShownActual / 2), nShownActual].forEach(function (rk) {
+        if (rnRanks.indexOf(rk) === -1) rnRanks.push(rk);
+      });
+      rnRanks.forEach(function (rk) {
         var Rn = Math.hypot(Lm, rk * dm);
         var yPix = cyA - rk * spacing;
         arrowLabel(ctx, W, wireX + 26, yPix, "R_" + rk + " = " + Rn.toFixed(3) + " m", C_INK);
       });
 
-      // L 표기
+      // L 표기 + 가로축 단절(⫽) — 세로는 실척이지만 가로(L)는 압축했다는 표시를 같은 줄에 병기
       ctx.save();
       ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
       ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText("L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", (wireX + Px) / 2, plotBottom + 12);
+      ctx.fillText("⫽  L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", (wireX + Px) / 2, plotBottom + 12);
       ctx.restore();
     } else {
       ctx.save();
@@ -987,24 +1004,27 @@
       ctx.restore();
     }
 
-    // 표시 범위 밖 이웃 — 점점이 암시
+    // 표시 범위 밖 이웃 — 점점이 암시 (밴드 밖으로 나가면 제목 글자와 겹치므로 생략)
     ctx.save();
     ctx.fillStyle = "#B9BEC4";
     [1, 2].forEach(function (j) {
-      var r = nShown + j, al = 0.5 - j * 0.18;
+      var r = nShownActual + j, al = 0.5 - j * 0.18;
       ctx.globalAlpha = Math.max(0.12, al);
       [-1, 1].forEach(function (s) {
-        ctx.beginPath(); ctx.arc(wireX, cyA + s * r * spacing, 3, 0, TWO_PI); ctx.fill();
+        var yy = cyA + s * r * spacing;
+        if (yy >= plotTop && yy <= plotBottom) {
+          ctx.beginPath(); ctx.arc(wireX, yy, 3, 0, TWO_PI); ctx.fill();
+        }
       });
     });
     ctx.globalAlpha = 1;
     ctx.restore();
 
     // 도선 점 — 이웃(색) + 가운데 A(굵은 검정) — 경로선/경고 위에 그려 항상 보이게
-    for (var n = 1; n <= nShown; n++) {
+    for (var n = 1; n <= nShownActual; n++) {
       ctx.fillStyle = wireColor(n, nShown);
-      ctx.beginPath(); ctx.arc(wireX, cyA - n * spacing, 5, 0, TWO_PI); ctx.fill();
-      ctx.beginPath(); ctx.arc(wireX, cyA + n * spacing, 5, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA - n * spacing, dotR, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA + n * spacing, dotR, 0, TWO_PI); ctx.fill();
     }
     ctx.fillStyle = C_INK;
     ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.fill();
