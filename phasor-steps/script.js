@@ -16,6 +16,9 @@
   var FLOQUET_M = 200;
   var A_WIRE = 0.0005;           // 0.5 mm 고정
   var CORNU_HALF = 3000;
+  // 고정 실척(px/mm) — 1단계(좌, R5)·2단계(좌, R6) 공유. 슬라이더가 바뀌면 "간격"만 바뀌고
+  // 그림 전체가 다시 맞춰지지(auto-fit) 않는다 — λ/d를 그림에서 직접 읽을 수 있게 하기 위함.
+  var PX_PER_MM = 3;
   var C_RED = "#C0392B", C_BLUE = "#2471A3", C_INK = "#111111", C_GREY = "#8A9199", C_ORANGE = "#E67E22";
   function k(lam) { return TWO_PI / lam; }
   var PRESET_PAIRS = [[60,3],[60,14],[60,26],[60,46],[48,60],[18,60]];  // [λ,d] mm
@@ -455,16 +458,21 @@
 
   // 이웃 도선 → A 로 향하는 가는 활 모양 화살선(1단계 왼쪽 전용). bow만큼 왼쪽으로 휘어
   // 같은 세로줄 위의 여러 화살이 서로 겹치지 않고 A로 모여드는 모습을 만든다.
+  // 화살촉은 A(끝점)가 아니라 곡선의 중간점(t=0.5)에 하나만 찍는다 — 끝점에 다 몰아 찍으면
+  // 여러 화살이 A 한 점에 겹쳐 안 보이기 때문(v6 R5). 이차 베지어는 t=0.5에서 접선이 정확히
+  // (끝점−시작점) 방향과 같으므로, 화살촉 각도는 직선 (x1,y1)→(x2,y2) 방향을 쓰면 된다.
   function curvedArrow(ctx, x1, y1, x2, y2, bow, color, width) {
     var ccx = x1 - bow, ccy = (y1 + y2) / 2, head = 6;
     ctx.save();
     ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(ccx, ccy, x2, y2); ctx.stroke();
-    var a = Math.atan2(y2 - ccy, x2 - ccx);
+    var mx = 0.25 * x1 + 0.5 * ccx + 0.25 * x2;
+    var my = 0.25 * y1 + 0.5 * ccy + 0.25 * y2;
+    var a = Math.atan2(y2 - y1, x2 - x1);
     ctx.beginPath();
-    ctx.moveTo(x2, y2);
-    ctx.lineTo(x2 - head * Math.cos(a - 0.4), y2 - head * Math.sin(a - 0.4));
-    ctx.lineTo(x2 - head * Math.cos(a + 0.4), y2 - head * Math.sin(a + 0.4));
+    ctx.moveTo(mx, my);
+    ctx.lineTo(mx - head * Math.cos(a - 0.4), my - head * Math.sin(a - 0.4));
+    ctx.lineTo(mx - head * Math.cos(a + 0.4), my - head * Math.sin(a + 0.4));
     ctx.closePath(); ctx.fill();
     ctx.restore();
   }
@@ -644,14 +652,26 @@
 
     var plotTop = 60, plotBottom = H - 90;
     var cyA = (plotTop + plotBottom) / 2;
-    var wireX = 480, spacing = 20, nShown = WIRE_PAIRS_SHOWN;
+    var wireX = 480;
 
-    // 평면파 입사 (회색 파면 + 화살표 + 라벨)
+    // 고정 실척(v6 R5): 세로 간격(px) = d(mm) × PX_PER_MM, 가로 파면 간격(px) = λ(mm) × PX_PER_MM.
+    // 슬라이더를 움직이면 "간격"만 바뀔 뿐 그림 전체를 다시 맞추지(auto-fit) 않는다 — λ/d를 그림에서
+    // 직접 읽게 하기 위함. 그 결과 d가 작으면 밴드 안에 훨씬 많은 이웃이 실제로 들어찬다(조밀한 벽).
+    var spacing = state.dMM * PX_PER_MM;
+    var halfBand = (plotBottom - plotTop) / 2;
+    var rankMax = Math.max(0, Math.floor(halfBand / spacing));      // 밴드 안에 실제로 들어가는 이웃 쌍 수
+    var curveCount = Math.min(rankMax, WIRE_PAIRS_SHOWN);           // 화살곡선(설명용)은 가까운 최대 10쌍만
+    var dotR = Math.min(5, 0.42 * spacing);                         // 조밀할 때 점이 뭉개지지 않게 축소
+
+    // 평면파 입사 (회색 파면 + 화살표 + 라벨). 파면은 A로부터 λ·PX_PER_MM 간격으로 왼쪽으로 늘어놓되,
+    // A 왼쪽 460px 밴드 밖으로는 그리지 않는다 — λ가 크면 밴드 안에 파면이 0~2개만 들어가는 것도 그대로 둔다.
     ctx.save();
     ctx.strokeStyle = "#C3C9CF"; ctx.lineWidth = 1.4; ctx.setLineDash([2, 5]);
-    [50, 85, 120, 155].forEach(function (x) {
-      ctx.beginPath(); ctx.moveTo(x, plotTop); ctx.lineTo(x, plotBottom); ctx.stroke();
-    });
+    var waveSpacing = state.lamMM * PX_PER_MM;
+    var waveBandLeft = wireX - 460;
+    for (var wx = wireX - waveSpacing; wx >= waveBandLeft; wx -= waveSpacing) {
+      ctx.beginPath(); ctx.moveTo(wx, plotTop); ctx.lineTo(wx, plotBottom); ctx.stroke();
+    }
     ctx.setLineDash([]);
     ctx.restore();
     arrow(ctx, 40, plotTop + 16, 205, plotTop + 16, C_GREY, 3, 10);
@@ -661,37 +681,29 @@
     ctx.fillText("평면파 입사", 40, plotTop + 6);
     ctx.restore();
 
-    // 이웃 → A 화살선 (뒤쪽부터 그려 앞쪽 진한 색이 위에 오게)
-    for (var rank = nShown; rank >= 1; rank--) {
-      var col = wireColor(rank, nShown);
+    // 이웃 → A 화살곡선 (뒤쪽부터 그려 앞쪽 진한 색이 위에 오게). 화살촉은 curvedArrow 내부에서
+    // 곡선 중간점에 하나만 찍힌다(A 쪽 끝점에는 안 찍음 — 여러 화살이 A 한 점에 겹쳐 안 보이던 문제 수정).
+    for (var rank = curveCount; rank >= 1; rank--) {
+      var col = wireColor(rank, WIRE_PAIRS_SHOWN);
       var bow = 18 + rank * 14;
       curvedArrow(ctx, wireX, cyA - rank * spacing, wireX, cyA, bow, col, 1.4);
       curvedArrow(ctx, wireX, cyA + rank * spacing, wireX, cyA, bow, col, 1.4);
     }
 
-    // 표시 범위 바깥 이웃 — 점점이 암시
+    // 밴드 가장자리 — 도선 배열이 화면 밖으로도 계속됨을 암시
     ctx.save();
-    ctx.fillStyle = "#B9BEC4";
-    [1, 2].forEach(function (j) {
-      var r = nShown + j, al = 0.5 - j * 0.18;
-      ctx.globalAlpha = Math.max(0.12, al);
-      [-1, 1].forEach(function (s) {
-        ctx.beginPath(); ctx.arc(wireX, cyA + s * r * spacing, 3, 0, TWO_PI); ctx.fill();
-      });
-    });
-    ctx.globalAlpha = 1;
     ctx.font = "16px system-ui, sans-serif"; ctx.fillStyle = "#9AA3AB";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("⋮", wireX, cyA - (nShown + 2.2) * spacing);
-    ctx.fillText("⋮", wireX, cyA + (nShown + 2.2) * spacing);
+    ctx.fillText("⋮", wireX, plotTop + 8);
+    ctx.fillText("⋮", wireX, plotBottom - 8);
     ctx.restore();
 
-    // 도선 점 — 이웃(색) + 가운데 A(굵은 검정)
-    for (var n = 1; n <= nShown; n++) {
-      var col2 = wireColor(n, nShown);
+    // 도선 점 — 밴드 안에 실제로 들어가는 이웃 전부(조밀한 d에서는 rankMax가 10을 훌쩍 넘는다) + 가운데 A(굵은 검정)
+    for (var n = 1; n <= rankMax; n++) {
+      var col2 = wireColor(n, WIRE_PAIRS_SHOWN);
       ctx.fillStyle = col2;
-      ctx.beginPath(); ctx.arc(wireX, cyA - n * spacing, 5, 0, TWO_PI); ctx.fill();
-      ctx.beginPath(); ctx.arc(wireX, cyA + n * spacing, 5, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA - n * spacing, dotR, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA + n * spacing, dotR, 0, TWO_PI); ctx.fill();
     }
     ctx.fillStyle = C_INK;
     ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.fill();
@@ -703,7 +715,7 @@
     ctx.fillText("A", wireX + 14, cyA);
     ctx.restore();
 
-    // 좌하단: 간격 d + 스케일 바 (도선 간 픽셀 간격 = d, 그 자체를 눈금으로 삼는다)
+    // 좌하단: 간격 d + 스케일 바 (도선 간 픽셀 간격 = d × PX_PER_MM, 그 자체를 눈금으로 삼는다)
     var sbX = 14, sbY = plotBottom + 16;
     ctx.save();
     ctx.strokeStyle = "#333"; ctx.lineWidth = 1.6;
@@ -717,9 +729,11 @@
     ctx.fillText("간격 d = " + state.dMM.toFixed(0) + " mm", sbX, sbY - 8);
     ctx.restore();
 
+    var rampSwatch = wireColor(Math.round(WIRE_PAIRS_SHOWN / 2), WIRE_PAIRS_SHOWN);
     notes(ctx, W, H, [
       ["● 도선 A (가운데, 굵은 검정)", C_INK],
-      ["● 이웃 ±rank 쌍 (진한→옅은 주황 — 오른쪽 화살표와 동일 색)", "rgba(230,126,34,0.85)"],
+      ["● 이웃 도선 (가까울수록 진한 적갈 → 멀수록 노랑)", rampSwatch],
+      ["곡선 = 이웃 도선이 A 표면에 보내는 산란 전기장 (곡선 모양 자체는 개략 표현)"],
       ["회색 점선 파면 = 평면파 입사 (왼쪽 → 오른쪽)", "#8A9199"]
     ]);
   }
