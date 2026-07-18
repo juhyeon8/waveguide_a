@@ -341,7 +341,29 @@
     else if (state.step === 2) drawStep2();
     else drawStep3();
     syncLabels();
+    warnBadges();
   }
+
+  // ===================================================================
+  // 경고 배지 3종 (v6 §5) — ka>0.3 / a/d>0.3 / 정수 d/λ 우드 문턱. 위험 시 .readnum 회색 처리.
+  // ===================================================================
+  function warnBadges() {
+    var kk=k(lamM()), d=dM(), dl=state.dMM/state.lamMM;   // dl = d/λ
+    var ka = kk*A_WIRE, ad = A_WIRE/d;
+    var nearInt = Math.abs(dl - Math.round(dl));
+    var W = [];
+    if (ka > 0.3)  W.push("⚠ 가는 도선 근사를 벗어남 — 이 영역의 수치는 부정확합니다");
+    if (ad > 0.3)  W.push("⚠ 간격에 비해 도선이 굵음 — 모형 적용 한계");
+    // 우드 이상은 '정수 d/λ'(1,2,3,…)에서만 발생(핸드오프 §4-2). 정수 문턱만 방어하는 것이 의도.
+    // Math.round(dl)>=1 은 d/λ→0(λ≫d, 우드 없음)을 배제 — 본진 차폐 구간을 오검출하지 않기 위함.
+    if (Math.round(dl) >= 1 && nearInt < 0.02)
+      W.push("⚠ λ=d 문턱 부근 — 모든 이웃의 산란 전기장이 같은 위상으로 도착해 되먹임 합이 한없이 커지는 구간입니다. 전류가 0으로 눌리는 경계라 수치가 불안정합니다 (Wood anomaly)");
+    var bar = document.getElementById("warnBar");
+    bar.innerHTML = W.map(function(t){return "<div class='warn'>"+t+"</div>";}).join("");
+    document.body.classList.toggle("risky", W.length > 0);   // .risky 시 수치 회색
+    return W.length;
+  }
+
   function bind() {
     document.getElementById("lamSlider").addEventListener("input", function(){ state.lamMM = +this.value; render(); });
     document.getElementById("dSlider").addEventListener("input", function(){ state.dMM = +this.value; render(); });
@@ -350,6 +372,10 @@
     document.getElementById("prevBtn").addEventListener("click", function(){ gotoStep(state.step - 1); });
     document.getElementById("nextBtn").addEventListener("click", function(){ gotoStep(state.step + 1); });
     document.getElementById("detail1").addEventListener("toggle", drawDetail);
+    var cv3 = document.getElementById("canvas3");
+    cv3.addEventListener("mousemove", function(e){ if (woodHitTest(e)) showWoodTip(e.clientX, e.clientY); else hideWoodTip(); });
+    cv3.addEventListener("mouseleave", hideWoodTip);
+    cv3.addEventListener("click", function(e){ if (woodHitTest(e)) showWoodTip(e.clientX, e.clientY); else hideWoodTip(); });
   }
 
   // ===================================================================
@@ -1057,7 +1083,177 @@
   }
 
   function drawStep2() { drawStep2Left(); drawStep2Right(); }
-  function drawStep3(){ var c=prep(document.getElementById("canvas3")); panelTitle(c.ctx,c.W,"3단계 곡선","stub"); }
+
+  // ===================================================================
+  // 12. 3단계 — λ/d에 따른 |I|·|s₀|·T 곡선 + 우드 문턱 (v6 §4, v5 buildCurves/drawT/plotCurve 이식)
+  // ===================================================================
+  var CURVE_LAM = 0.060;                 // 곡선 "형태" 계산용 고정 기준 λ (v5 L17 이식) — a 고정이므로 λ/d축 모양이 대표적
+  var CURVE_LD_MIN = 0.3, CURVE_LD_MAX = 20;
+  var curves = null;                     // λ/d 축 곡선 — 최초 1회만 계산
+  var woodCols = [];                     // 우드 세로선 호버/클릭 히트박스 — drawStep3마다 재계산
+
+  var WOOD_SHORT = "λ=d 문턱 — 모든 이웃이 같은 위상으로 도착, 전류가 0으로 눌림 (Wood anomaly)";
+  var WOOD_FULL = "파장이 도선 간격과 정확히 같아지면(λ=d), 이웃 도선에서 도선 A까지의 거리가 파장의 정수배가 되어, 모든 이웃의 산란 전기장이 A 표면에 같은 위상으로 도착한다. 이웃 기여의 진폭은 거리에 따라 천천히만 줄어들므로(원통파의 1/√거리 감쇠), 같은 위상으로 쌓이는 합은 이웃 수를 늘릴수록 한없이 커진다. 그런데 도선 표면의 전기장은 0이어야 하므로, 유한한 전류가 조금이라도 흐르면 이 무한히 큰 되먹임 전기장을 상쇄할 방법이 없다. 결국 경계조건을 만족하는 전류는 0뿐이다. 전류가 0이면 산란파도 없고, 격자는 마치 없는 것처럼 파동을 통과시킨다 (Wood anomaly).";
+
+  function buildCurves() {
+    var kk = k(CURVE_LAM);
+    var n = 420, out = { ld: [], I: [], s0: [], T: [] };
+    for (var i = 0; i < n; i++) {
+      var ldv = Math.exp(Math.log(CURVE_LD_MIN) + (Math.log(CURVE_LD_MAX) - Math.log(CURVE_LD_MIN)) * i / (n - 1));
+      var dl = 1 / ldv;
+      // 정수 d/λ 정확점은 항 탈락 함정 → 표본을 살짝 비켜 놓는다 (v5 이식)
+      var near = Math.round(dl);
+      if (near >= 1 && Math.abs(dl - near) < 0.004) { dl = near + (dl >= near ? 0.004 : -0.004); ldv = 1 / dl; }
+      var d = dl * CURVE_LAM;
+      out.ld.push(ldv);
+      out.I.push(mag(currentExact(kk, A_WIRE, d)));
+      out.s0.push(mag(s0Exact(kk, A_WIRE, d)));
+      out.T.push(powers(kk, A_WIRE, d).T);
+    }
+    return out;
+  }
+
+  // withT: 아래(s₀) 그래프에 T(투과율) 점선을 겹쳐 그린다. 현재 (λ,d) 위치는 곡선의 근사값이 아니라
+  // 실제 λ,d로 다시 계산한 값으로 찍는다 (곡선은 CURVE_LAM 고정 기준 "형태"일 뿐).
+  function plotCurve(ctx, W, x, y, w, h, data, title, color, withT) {
+    var lo = Math.log(CURVE_LD_MIN), hi = Math.log(CURVE_LD_MAX);
+    var X = function (ldv) { return x + w * (Math.log(ldv) - lo) / (hi - lo); };
+    var ymax = 1.15;
+    var Y = function (v) { return y + h - h * Math.min(v, ymax) / ymax; };
+
+    ctx.save();
+    ctx.font = "bold 16px system-ui, sans-serif";
+    ctx.fillStyle = color; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText(title, x, y - 6);
+    if (withT) {
+      ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_BLUE; ctx.textAlign = "right";
+      ctx.fillText("- - - T (투과율)", x + w, y - 6);
+    }
+
+    // 틀
+    ctx.strokeStyle = "#C9D0D6"; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+
+    // 우드 이상(정수 d/λ = 1,2,3) 세로 점선 — 도메인 안에 드는 것만
+    ctx.setLineDash([3, 3]); ctx.lineWidth = 1.2;
+    [1, 2, 3].forEach(function (nInt) {
+      var ldv = 1 / nInt;
+      if (ldv < CURVE_LD_MIN || ldv > CURVE_LD_MAX) return;
+      var lx = X(ldv);
+      ctx.strokeStyle = nInt === 1 ? "#7D3C98" : "#C6B0D4";
+      ctx.beginPath(); ctx.moveTo(lx, y); ctx.lineTo(lx, y + h); ctx.stroke();
+      woodCols.push({ x: lx, yTop: y, yBot: y + h });
+    });
+    ctx.setLineDash([]);
+
+    // 눈금
+    ctx.font = "13px system-ui, sans-serif"; ctx.fillStyle = "#666";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    [0.3, 0.5, 1, 2, 5, 10, 20].forEach(function (t) {
+      if (t < CURVE_LD_MIN || t > CURVE_LD_MAX) return;
+      ctx.fillText(String(t), X(t), y + h + 4);
+      ctx.strokeStyle = "#C9D0D6"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(X(t), y + h); ctx.lineTo(X(t), y + h + 3); ctx.stroke();
+    });
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    [0, 0.5, 1].forEach(function (v) {
+      ctx.fillText(v.toFixed(1), x - 5, Y(v));
+      ctx.strokeStyle = "#EDF0F3";
+      ctx.beginPath(); ctx.moveTo(x, Y(v)); ctx.lineTo(x + w, Y(v)); ctx.stroke();
+    });
+    ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = "#444";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("λ/d  (로그축)", x + w / 2, y + h + 20);
+
+    // T 곡선 겹치기
+    if (withT) {
+      ctx.strokeStyle = "rgba(36,113,163,0.85)"; ctx.lineWidth = 2.4; ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      curves.ld.forEach(function (ldv, i) {
+        var px = X(ldv), py = Y(curves.T[i]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // 본 곡선
+    ctx.strokeStyle = color; ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    curves.ld.forEach(function (ldv, i) {
+      var px = X(ldv), py = Y(data[i]);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // 현재 (λ,d) 위치 마커 — x는 곡선축(ld, 도메인 밖이면 clamp), y값은 실제 λ,d로 재계산
+    var cur = ld();
+    var curClamped = Math.min(CURVE_LD_MAX, Math.max(CURVE_LD_MIN, cur));
+    var realVal = data === curves.I ? mag(currentExact(k(lamM()), A_WIRE, dM())) : mag(s0Exact(k(lamM()), A_WIRE, dM()));
+    var mx = X(curClamped), my = Y(realVal);
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(mx, my, 6, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = "#FFF"; ctx.lineWidth = 1.8; ctx.stroke();
+    arrowLabel(ctx, W, mx + 10, my - 12, (data === curves.I ? "|I| = " : "|s₀| = ") + realVal.toFixed(4), color);
+
+    // s₀ 그래프에서는 같은 x에 실제 T값도 함께 찍어 "반대로 간다"를 바로 대조할 수 있게 한다
+    if (withT) {
+      var Treal = powers(k(lamM()), A_WIRE, dM()).T;
+      var ty = Y(Treal);
+      ctx.fillStyle = C_BLUE;
+      ctx.beginPath(); ctx.arc(mx, ty, 5, 0, TWO_PI); ctx.fill();
+      ctx.strokeStyle = "#FFF"; ctx.lineWidth = 1.6; ctx.stroke();
+      arrowLabel(ctx, W, mx + 10, ty + 14, "T = " + (Treal * 100).toFixed(2) + " %", C_BLUE);
+    }
+
+    ctx.restore();
+  }
+
+  function drawStep3() {
+    var c = prep(document.getElementById("canvas3"));
+    var ctx = c.ctx, W = c.W, H = c.H;
+    if (!curves) curves = buildCurves();
+    woodCols = [];
+
+    panelTitle(ctx, W, "3단계 — 그래서 차폐 곡선",
+      "λ/d에 따른 |I|·|s₀|·T (곡선 형태는 λ=" + (CURVE_LAM * 1000).toFixed(0) + "mm 고정 기준 · 현재 (λ,d) 위치는 실제값)");
+
+    var gx = 80, gw = W - gx - 40;
+    plotCurve(ctx, W, gx, 90, gw, 200, curves.I, "도선 하나의 전류 — 오르내려 차폐를 못 읽음 (|I| vs λ/d)", C_INK, false);
+    plotCurve(ctx, W, gx, 380, gw, 200, curves.s0, "합쳐진 산란 — 투과율과 정확히 반대 (|s₀| vs λ/d)", C_RED, true);
+
+    arrowLabel(ctx, W, gx, 644, "보라 점선 = " + WOOD_SHORT, "#7D3C98");
+    notes(ctx, W, H, [
+      ["점선(보라·연보라) = 정수 d/λ = 1,2,3 지점 — 클릭/마우스오버 시 전문 표시", "#7D3C98"]
+    ]);
+  }
+
+  // ── 우드 세로선 호버/클릭 툴팁 (HTML #woodTip, 캔버스 위 절대좌표) ──
+  function canvasEventXY(cv, e) {
+    var r = cv.getBoundingClientRect();
+    var lw = +cv.dataset.logicalW || cv.width, lh = +cv.dataset.logicalH || cv.height;
+    return [(e.clientX - r.left) * (lw / r.width), (e.clientY - r.top) * (lh / r.height)];
+  }
+  function woodHitTest(e) {
+    var cv = document.getElementById("canvas3");
+    var xy = canvasEventXY(cv, e);
+    for (var i = 0; i < woodCols.length; i++) {
+      var c2 = woodCols[i];
+      if (Math.abs(xy[0] - c2.x) <= 8 && xy[1] >= c2.yTop - 4 && xy[1] <= c2.yBot + 4) return true;
+    }
+    return false;
+  }
+  function showWoodTip(clientX, clientY) {
+    var tip = document.getElementById("woodTip");
+    if (!tip) return;
+    tip.textContent = WOOD_FULL;
+    tip.style.left = Math.min(clientX + 14, window.innerWidth - 380) + "px";
+    tip.style.top = (clientY + 14) + "px";
+    tip.hidden = false;
+  }
+  function hideWoodTip() {
+    var tip = document.getElementById("woodTip");
+    if (tip) tip.hidden = true;
+  }
 
   // ===================================================================
   // 10. 시작 — 자가 테스트 게이트 통과 후에만 렌더 (§1.6)
