@@ -571,7 +571,7 @@
   // 화살표 옆에 흰 배경을 깐 라벨 (겹쳐도 읽히게). 캔버스 폭 안으로 x를 clamp.
   function arrowLabel(ctx, W, x, y, text, color) {
     ctx.save();
-    ctx.font = "13px system-ui, sans-serif";
+    ctx.font = "bold 16px system-ui, sans-serif";
     var w = ctx.measureText(text).width;
     var lx = Math.min(Math.max(x, 4), W - w - 4);
     backdrop(ctx, lx - 3, y - 9, w + 6, 16);
@@ -602,7 +602,7 @@
     ctx.restore();
     arrow(ctx, 40, plotTop + 16, 205, plotTop + 16, C_GREY, 3, 10);
     ctx.save();
-    ctx.font = "bold 14px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
+    ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
     ctx.textAlign = "left"; ctx.textBaseline = "bottom";
     ctx.fillText("평면파 입사", 40, plotTop + 6);
     ctx.restore();
@@ -644,7 +644,7 @@
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.stroke();
     ctx.save();
-    ctx.font = "bold 15px system-ui, sans-serif"; ctx.fillStyle = C_INK;
+    ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
     ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.fillText("A", wireX + 14, cyA);
     ctx.restore();
@@ -658,7 +658,7 @@
     ctx.moveTo(sbX, sbY); ctx.lineTo(sbX + spacing, sbY);
     ctx.moveTo(sbX + spacing, sbY - 5); ctx.lineTo(sbX + spacing, sbY + 5);
     ctx.stroke();
-    ctx.font = "bold 13px system-ui, sans-serif"; ctx.fillStyle = "#333";
+    ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = "#333";
     ctx.textAlign = "left"; ctx.textBaseline = "bottom";
     ctx.fillText("간격 d = " + state.dMM.toFixed(0) + " mm", sbX, sbY - 8);
     ctx.restore();
