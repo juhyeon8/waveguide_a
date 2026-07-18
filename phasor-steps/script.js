@@ -504,7 +504,7 @@
     ctx.stroke();
     if (label) {
       // 표적 바로 위 가운데. 그림과 겹쳐도 읽히도록 흰 배경을 깐다.
-      ctx.font = "bold 14px system-ui, sans-serif";
+      ctx.font = "bold 16px system-ui, sans-serif";
       var w = ctx.measureText(label).width;
       var lx = Math.min(Math.max(p[0], w / 2 + 6), W - w / 2 - 6);
       backdrop(ctx, lx - w / 2 - 3, p[1] - 32, w + 6, 17);
@@ -787,7 +787,7 @@
       arrow(ctx, q0[0], q0[1], q1[0], q1[1], C_RED, 1.8, 7);
     }
 
-    // 자기항 (파랑) — 전류 1단위당 자기 표면 전기장
+    // 자체 산란(self term) (파랑) — 전류 1단위당 자기 표면 전기장
     var pz = map(P[0]);
     arrow(ctx, O[0], O[1], pz[0], pz[1], C_BLUE, 4, 11);
 
@@ -811,7 +811,7 @@
     ]);
 
     notes(ctx, W, H, [
-      ["■ 자기항 Z_self = H₀(ka)  (전류 1단위당)", C_BLUE],
+      ["■ 자체 산란(self term) Z_self = H₀(ka)  (전류 1단위당)", C_BLUE],
       ["■ 이웃 쌍 2·H₀(k·n·d)  (n 커질수록 옅게)", C_RED],
       ["■ D = Z_self + S      ⊕ Floquet 정확값 (점선)", C_INK]
     ]);
