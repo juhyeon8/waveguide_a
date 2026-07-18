@@ -1003,69 +1003,47 @@
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.arc(Px, Py, 6, 0, TWO_PI); ctx.stroke();
       ctx.restore();
-      // P 라벨은 Px(관측점 마커의 x좌표, L 슬라이더에 따라 [460,580] 사이를 움직인다)를 따라가며
-      // "P 오른쪽"에 붙는다(R11fix — R11 리뷰 지적: pLabelX=W-10 고정이면 L≳0.94(슬라이더 범위의
-      // 약 78%)에서 마커가 이미 라벨 자체의 가로 폭 안/오른쪽까지 들어와 "P를 따라가는 라벨"이 아니라
-      // "모서리에 고정된 채 점선으로 위쪽 어딘가를 가리키는 라벨"처럼 보였다).
+      // P 라벨: P 아래 중앙에 고정(R11simplify — 사용자 결정으로 "P 오른쪽" 요구를 철회했다).
+      // 이전 트래킹 공식(pLabelX = min(Px+130, W-10))은 textAlign="right"라 배경이 앵커 왼쪽으로
+      // 번져, L≳0.94(슬라이더 범위의 약 83%)에서 배경이 다시 마커 x위치를 덮었다 — 캔버스 폭
+      // 620px 안에서 라벨 폭(~113px)을 Px 최댓값(580)의 오른쪽 여백(30px)에 욱여넣을 수 없는
+      // 기하적 한계였다(더 정교한 x 추적으로도 못 고침). 그래서 Px 추적 자체를 버린다.
       //
-      // 트래킹 공식: pLabelX = min(Px + PLABEL_OFFSET, W-10). PLABEL_OFFSET(=130)은 "실측 텍스트
-      // 폭(112.54px, bold 16px system-ui, Playwright measureText 실측) + 배경 여백(9) + 여유 간격
-      // (약 8)"을 반영한 값 — Px가 작을 때(L 낮음)는 이 오프셋만큼 라벨 배경 왼쪽 끝까지 Px보다
-      // 완전히 오른쪽에 놓인다. 단, 캔버스 폭이 유한(W=620)하고 Px의 최댓값(580, L=3)이 이미 캔버스
-      // 오른쪽 여백(610)에서 30px밖에 안 남아 있어서, 라벨 폭(~113px)을 그 30px 안에 통째로 욱여넣는
-      // 건 어떤 오프셋을 골라도 불가능하다(기하적으로 막힌 제약 — 아래 "알려진 한계" 참고). clamp
-      // 구간에서도 최소한 "앵커 pLabelX는 항상 Px보다 크다(gap>=30px)"는 것만은 슬라이더 전 구간에서
-      // 보장한다.
-      //
-      // 무충돌 증명(팬 라인, R11에서 세운 증명 그대로 — x와 무관해 재검증 불필요): 경로선(팬 라인)은
-      // 전부 (wireX, cyA ± rank·spacing) — (Px, cyA) 두 점을 잇는 직선이고, floor(halfBand/spacing)
-      // 정의상 rankMax·spacing <= halfBand이므로 두 끝점의 y는 항상 [plotTop, plotBottom] 안에 있다
-      // (직선은 두 끝점의 볼록결합이므로 선분 전체가 이 구간 안 — d·L·λ 어떤 조합이든 성립하고
-      // pLabelX가 무엇이든 참, 애초에 x와 무관한 y만의 논증). 따라서 y > plotBottom(라벨 배경 영역)은
-      // 여전히 안전지대다. pLabelY는 이번에 손대지 않았으므로(=plotBottom+23) 라벨 배경 상단
-      // (pLabelY-9=plotBottom+14)도 그대로 안전하다.
-      //
-      // 무충돌 재증명(안내선, R11fix): 예전엔 대각선 한 줄로 (Px,Py+7)→(라벨 중앙 위, pLabelY-8)을
-      // 이었는데, 그때는 라벨 쪽 x가 고정값이라 "안내선이 항상 Px보다 오른쪽에서만 움직인다"는 전제가
-      // 성립했다. 이제 pLabelX가 Px를 따라가므로 그 전제가 깨진다 — 라벨 중앙(pLabelX-pLabelW/2)이
-      // Px보다 왼쪽으로 갈 수 있는 조합이 생기면 대각선이 팬 라인 다발의 x 범위([wireX,Px]) 안으로
-      // 들어가 버려 교차 가능성을 배제할 수 없다. 그래서 안내선을 "ㄴ자(먼저 수직, 다음 수평)"로
-      // 바꿨다 — 두 구간을 따로 증명한다.
-      //   · 수직 구간 (Px,Py+7)→(Px,dropY): x=Px 고정. 모든 팬 라인 중 x=Px를 지나는 점은 오직
-      //     (Px,Py) 단 하나(모든 팬 라인의 오른쪽 끝점이 전부 이 한 점에서 만난다 — 위 경로선 루프).
-      //     이 수직 구간의 y범위는 [Py+7, dropY]로 Py를 포함하지 않으므로(Py+7 > Py) 그 유일한 점과도
-      //     만나지 않는다 — Px·팬 라인 어떤 조합이든 항상 성립.
-      //   · 수평 구간 (Px,dropY)→(labelMidX,dropY): y=dropY=pLabelY-8=plotBottom+15 고정, 이는 바로
-      //     위 팬 라인 무충돌 증명의 안전지대(y>plotBottom) 안이므로 x범위가 무엇이든(Px든 labelMidX든)
-      //     팬 라인과 만날 수 없다.
-      // 두 구간 모두 x·L·d 값과 무관하게 항상 안전 — pLabelX가 앞으로 어떤 값을 갖든(트래킹이든
-      // clamp든) 이 증명은 다시 세울 필요가 없다(대각선 대신 이 형태를 고른 이유).
-      //
-      // 알려진 한계: 라벨 배경의 가로 범위([pLabelX-pLabelW-9, pLabelX+3])가 Px를 완전히 비켜가는 건
-      // L<=0.75(대략, 슬라이더 하위 17%)까지만 성립하고 그 이상은 clamp 때문에 배경의 가로 범위 안에
-      // Px가 다시 들어간다(캔버스 폭 제약, 위 설명 참고). 다만 라벨은 Px와 세로로 260px 가까이 떨어져
-      // 있어(Py=305 vs pLabelY≈573, R11에서 정해진 값, 이번엔 변경 안 함) 두 요소의 y범위가 아예
-      // 겹치지 않으므로 화면에 "마커를 덮는 라벨"로 보이는 일은 없다. 이번 수정의 핵심은 "앵커가 Px를
-      // 계속 따라가며 항상 그 오른쪽에 붙어 있는다"는 것이고, 이는 슬라이더 전 구간에서 예외 없이
-      // 성립한다.
-      var PLABEL_OFFSET = 130;
+      // 새 공식: pLabelX는 L과 무관한 고정값 — Px가 도는 범위 [wireX+260, wireX+380] = [460,580]
+      // (위 pixelL 공식)의 중앙값 520으로 고정한다. textAlign="center"라 배경이 pLabelX 기준
+      // 좌우 대칭이라, Px와의 관계를 케이스별로 따질 필요가 없다. y는 손대지 않음
+      // (plotBottom+23, 기존과 동일한 안전지대).
       var pLabelText = "P (정면 관측점)";
-      var pLabelX = Math.min(Px + PLABEL_OFFSET, W - 10);
+      var pLabelX = 520;                 // Px∈[460,580]의 중앙값 — L에 무관한 고정 위치
       var pLabelY = plotBottom + 23;
       ctx.save();
       ctx.font = "bold 16px system-ui, sans-serif";
       var pLabelW = ctx.measureText(pLabelText).width;
-      backdrop(ctx, pLabelX - pLabelW - 9, pLabelY - 9, pLabelW + 12, 16);
-      ctx.fillStyle = C_RED; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      backdrop(ctx, pLabelX - pLabelW / 2 - 6, pLabelY - 9, pLabelW + 12, 16);
+      ctx.fillStyle = C_RED; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(pLabelText, pLabelX, pLabelY);
       ctx.restore();
+
+      // 안내선: 실제 P 마커 (Px,Py)에서 곧장 아래로 내려간 뒤, 라벨의 고정 중심(pLabelX)까지
+      // 가로로 잇는 ㄴ자 — 라벨이 어디 고정돼 있든 "이 라벨이 가리키는 P는 저기"가 보이게 한다.
+      // 무충돌 증명(더 단순해짐 — pLabelX가 상수가 되면서 "labelMidX와 Px의 대소관계" 케이스
+      // 분석이 통째로 사라졌다):
+      //   · 수직 구간 (Px,Py+7)→(Px,dropY): x=Px 고정. 모든 팬 라인은 (wireX, cyA±rank·spacing)에서
+      //     시작해 (Px,Py) 한 점에서 끝난다(경로선 루프, 위) — x=Px를 지나는 팬 라인 위의 점은 그
+      //     끝점 (Px,Py) 하나뿐이다. 이 수직 구간은 y∈[Py+7, dropY]로 Py를 포함하지 않으므로
+      //     (Py+7 > Py) 그 점과도 만나지 않는다 — L·d 어떤 조합이든 항상 성립.
+      //   · 수평 구간 (Px,dropY)→(pLabelX,dropY): y=dropY=pLabelY-8=plotBottom+15 고정. 팬 라인은
+      //     전부 y∈[plotTop,plotBottom] 안에 있다(rankMax·spacing<=halfBand 불변식 — 1단계와 동일
+      //     증명). dropY>plotBottom이므로 이 구간은 x범위(Px~pLabelX 무엇이든)와 무관하게 항상
+      //     안전지대다.
+      // pLabelX가 상수이므로 이 증명은 L·d 값이 바뀌어도 다시 세울 필요가 없다.
       ctx.save();
       ctx.strokeStyle = C_RED; ctx.lineWidth = 1; ctx.globalAlpha = 0.55; ctx.setLineDash([3, 3]);
-      var labelMidX = pLabelX - pLabelW / 2, dropY = pLabelY - 8;
+      var dropY = pLabelY - 8;
       ctx.beginPath();
       ctx.moveTo(Px, Py + 7);
       ctx.lineTo(Px, dropY);
-      ctx.lineTo(labelMidX, dropY);
+      ctx.lineTo(pLabelX, dropY);
       ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
       ctx.restore();
