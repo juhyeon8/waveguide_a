@@ -912,6 +912,19 @@
     var Lm = state.L, dm = dM(), lam = lamM();
     var guardL = L_GUARD_LAMBDAS * lam;
 
+    // 왼쪽 아래 범례 행 구성 — notes()에서 실제로 그리기 전에 먼저 만들어 둔다. 아래 "⫽ L=..."
+    // 캡션이 이 범례의 배경 상단(y = H - noteRows.length*18 - 8 - 3)을 안전 여백을 두고 피해가려면
+    // 캡션을 그리는 시점에 이미 최종 행 수를 알아야 하기 때문(R10). 실제 그리기(notes 호출)는
+    // z-order를 유지하기 위해 기존 위치(맨 아래)에 그대로 둔다 — 여기서는 배열만 만든다.
+    var noteRows = [["● 도선(가운데 A 굵은 검정, 이웃 진한→옅은 주황)", C_INK]];
+    if (Lm >= guardL) {
+      noteRows.push(["경로선 색 = 오른쪽 나선과 동일 색 문법(거리→색)", "rgba(230,126,34,0.85)"]);
+      noteRows.push(["바깥 도선일수록 P까지 경로가 길다 (R_n 수치 참조)", "#555"]);
+    } else {
+      noteRows.push(["L이 너무 가까워 경로선·P·R_n 표시를 생략함", "#555"]);
+    }
+    noteRows.push(["회색 점선 = 입사 평면파의 파면 (간격 = 파장 λ)", C_GREY]);
+
     // 세로축 고정 실척(v6 R6): 1단계(좌)와 동일한 PX_PER_MM·공식 재사용 — 같은 d면 두 패널의
     // 도선 간격이 픽셀 단위로 똑같이 보인다. 가로(P까지 거리)는 L(m)·d(mm) 단위가 달라 한 그림에
     // 같은 축척으로 못 담으므로 압축한 채 유지하고, 아래 ⫽ 표기로 "실척 아님"을 명시한다.
@@ -1036,11 +1049,18 @@
       ctx.fillText("⫽", breakX, cyA + 22);
       ctx.restore();
 
-      // L 표기 + 가로축 단절(⫽) — 세로는 실척이지만 가로(L)는 압축했다는 표시를 같은 줄에 병기
+      // L 표기 + 가로축 단절(⫽) — 세로는 실척이지만 가로(L)는 압축했다는 표시를 같은 줄에 병기.
+      // y는 plotBottom 기준 고정값이 아니라 왼쪽 아래 범례(notes(), noteRows 참조) 배경 상단에서
+      // 역산한다 — 범례 행 수(noteRows.length)가 늘어나 배경이 위로 자랄 때도 이 캡션이 항상
+      // 범례 위에 여백을 두고 떠 있도록(R10; 범례가 커지며 이 캡션을 가리던 문제 수정).
+      // baseline="bottom"으로 텍스트 "아래쪽" 끝을 이 y에 고정하면 글자가 항상 그 위쪽에 그려져
+      // 범례 배경 상단(legendTop)과의 간격이 폰트 크기와 무관하게 보장된다.
       ctx.save();
       ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
-      ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText("⫽  L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", breakX, plotBottom + 12);
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      var legendTop = H - noteRows.length * 18 - 8 - 3;   // notes()의 backdrop(6, y0-3, ...) 상단과 동일 계산
+      var captionY = legendTop - 8;                        // 범례 배경 위 8px 여백
+      ctx.fillText("⫽  L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", breakX, captionY);
       ctx.restore();
     } else {
       ctx.save();
@@ -1086,14 +1106,6 @@
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.stroke();
 
-    var noteRows = [["● 도선(가운데 A 굵은 검정, 이웃 진한→옅은 주황)", C_INK]];
-    if (Lm >= guardL) {
-      noteRows.push(["경로선 색 = 오른쪽 나선과 동일 색 문법(거리→색)", "rgba(230,126,34,0.85)"]);
-      noteRows.push(["바깥 도선일수록 P까지 경로가 길다 (R_n 수치 참조)", "#555"]);
-    } else {
-      noteRows.push(["L이 너무 가까워 경로선·P·R_n 표시를 생략함", "#555"]);
-    }
-    noteRows.push(["회색 점선 = 입사 평면파의 파면 (간격 = 파장 λ)", C_GREY]);
     notes(ctx, W, H, noteRows);
   }
 
