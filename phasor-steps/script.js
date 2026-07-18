@@ -1255,7 +1255,7 @@
 
   // withT: 아래(s₀) 그래프에 T(투과율) 점선을 겹쳐 그린다. 현재 (λ,d) 위치는 곡선의 근사값이 아니라
   // 실제 λ,d로 다시 계산한 값으로 찍는다 (곡선은 CURVE_LAM 고정 기준 "형태"일 뿐).
-  function plotCurve(ctx, W, x, y, w, h, data, title, color, withT) {
+  function plotCurve(ctx, W, x, y, w, h, data, title, color, withT, yLabel) {
     var lo = Math.log(CURVE_LD_MIN), hi = Math.log(CURVE_LD_MAX);
     var X = function (ldv) { return x + w * (Math.log(ldv) - lo) / (hi - lo); };
     var ymax = 1.15;
@@ -1301,6 +1301,18 @@
       ctx.strokeStyle = "#EDF0F3";
       ctx.beginPath(); ctx.moveTo(x, Y(v)); ctx.lineTo(x + w, Y(v)); ctx.stroke();
     });
+
+    // y축 물리량 라벨 — 세로(90° 회전), 숫자 눈금(0/0.5/1.0) 왼쪽에 겹치지 않게
+    if (yLabel) {
+      ctx.save();
+      ctx.translate(x - 52, y + h / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.font = "bold 14px system-ui, sans-serif"; ctx.fillStyle = "#444";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(yLabel, 0, 0);
+      ctx.restore();
+    }
+
     ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = "#444";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
     ctx.fillText("λ/d  (로그축)", x + w / 2, y + h + 20);
@@ -1358,8 +1370,8 @@
       "λ/d에 따른 |I|·|s₀|·T (곡선 형태는 λ=" + (CURVE_LAM * 1000).toFixed(0) + "mm 고정 기준 · 현재 (λ,d) 위치는 실제값)");
 
     var gx = 80, gw = W - gx - 40;
-    plotCurve(ctx, W, gx, 90, gw, 200, curves.I, "도선 하나의 전류 — 오르내려 차폐를 못 읽음 (|I| vs λ/d)", C_INK, false);
-    plotCurve(ctx, W, gx, 380, gw, 200, curves.s0, "합쳐진 산란 — 투과율과 정확히 반대 (|s₀| vs λ/d)", C_RED, true);
+    plotCurve(ctx, W, gx, 90, gw, 200, curves.I, "도선 하나의 전류 — 오르내려 차폐를 못 읽음 (|I| vs λ/d)", C_INK, false, "|I| (전류 진폭, 입사파 = 1 규격화)");
+    plotCurve(ctx, W, gx, 380, gw, 200, curves.s0, "합쳐진 산란 — 투과율과 정확히 반대 (|s₀| vs λ/d)", C_RED, true, "|s₀|, T (입사파 = 1 규격화 / T는 투과율 0~1)");
 
     arrowLabel(ctx, W, gx, 644, "보라 점선 = " + WOOD_SHORT, "#7D3C98");
     notes(ctx, W, H, [
