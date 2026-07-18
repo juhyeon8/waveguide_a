@@ -11,6 +11,7 @@ pre{white-space:pre-wrap}
   border:1px solid #D5DBE1;border-radius:6px;
 }
 .ctl{display:flex;flex-direction:column;gap:4px;min-width:160px}
+.ctl[hidden]{display:none}
 .ctl label{font-weight:700;font-size:15px}
 .ctl .val{color:#C0392B;font-variant-numeric:tabular-nums}
 .ctl input[type=range]{width:100%;accent-color:#2471A3}

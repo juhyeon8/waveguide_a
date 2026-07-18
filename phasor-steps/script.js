@@ -399,17 +399,21 @@
 
   function prep(cv) {
     var dpr = window.devicePixelRatio || 1;
-    var w = cv.width, h = cv.height;
     if (cv.dataset.ready !== "1") {
-      cv.style.width = w + "px";
-      cv.width = Math.round(w * dpr);
-      cv.height = Math.round(h * dpr);
-      cv.dataset.logicalW = w; cv.dataset.logicalH = h;
+      // 최초 호출: cv.width/height는 아직 HTML 속성값(=논리 크기) 그대로다
+      cv.style.width = cv.width + "px";
+      cv.dataset.logicalW = cv.width; cv.dataset.logicalH = cv.height;
       cv.dataset.ready = "1";
+    }
+    var W = +cv.dataset.logicalW, H = +cv.dataset.logicalH;
+    // DPR이 바뀌면(줌·모니터 이동) 백킹 스토어를 다시 만든다 — 재대입만으로 자동으로 비워진다
+    var needW = Math.round(W * dpr), needH = Math.round(H * dpr);
+    if (cv.width !== needW || cv.height !== needH) {
+      cv.width = needW;
+      cv.height = needH;
     }
     var ctx = cv.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var W = +cv.dataset.logicalW, H = +cv.dataset.logicalH;
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, W, H);
     return { ctx: ctx, W: W, H: H };
