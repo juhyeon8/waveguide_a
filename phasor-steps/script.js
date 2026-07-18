@@ -574,7 +574,7 @@
   // 패널 안 상시 표기값 (§7: 정지 캡처가 완결되게). 배경을 깔아 그림과 겹쳐도 읽히게.
   function readout(ctx, W, y, rows) {
     ctx.save();
-    ctx.font = "16px system-ui, sans-serif";
+    ctx.font = "bold 16px system-ui, sans-serif";
     var wmax = 0;
     rows.forEach(function (r) { wmax = Math.max(wmax, ctx.measureText(r[0] + " " + r[1]).width); });
     backdrop(ctx, W - 14 - wmax, y - 3, wmax + 10, rows.length * 20 + 4);
@@ -589,7 +589,7 @@
   // 왼쪽 아래 범례/주석 (배경 포함)
   function notes(ctx, W, H, rows) {
     ctx.save();
-    ctx.font = "14px system-ui, sans-serif";
+    ctx.font = "bold 16px system-ui, sans-serif";
     var wmax = 0;
     rows.forEach(function (r) { wmax = Math.max(wmax, ctx.measureText(r[0]).width); });
     var y0 = H - rows.length * 18 - 8;
