@@ -3,6 +3,9 @@ body{background:#fff;color:#111;font:16px system-ui,sans-serif}
 .badge.pass{background:#e8f6ec;color:#1e7e34}
 .badge.fail{background:#fdecec;color:#c0392b}
 pre{white-space:pre-wrap}
+.fromFieldBanner{background:#F3F2EE;color:#555;font-weight:700;font-size:14px;
+  padding:8px 12px;border:1px solid #D8D5CC;border-radius:6px;margin:12px 0 0}
+.fromFieldBanner[hidden]{display:none}
 
 /* ── 상단 조작부 ── */
 .controlbar{

@@ -336,6 +336,7 @@
     document.getElementById("nWrap").hidden = state.step !== 1;
     document.getElementById("lWrap").hidden = state.step !== 2;
     document.getElementById("step1Caption").hidden = state.step !== 1;
+    document.getElementById("step2Caption").hidden = state.step !== 2;
     document.getElementById("detail1").hidden = state.step !== 1;
     document.getElementById("detail2").hidden = state.step !== 2;
     render();
@@ -1260,7 +1261,7 @@
   var woodCols = [];                     // 우드 세로선 호버/클릭 히트박스 — drawStep3마다 재계산
 
   var WOOD_SHORT = "λ=d 문턱 — 모든 이웃이 같은 위상으로 도착, 전류가 0으로 눌림 (Wood anomaly)";
-  var WOOD_FULL = "파장이 도선 간격과 정확히 같아지면(λ=d), 이웃 도선에서 도선 A까지의 거리가 파장의 정수배가 되어, 모든 이웃의 산란 전기장이 A 표면에 같은 위상으로 도착한다. 이웃 기여의 진폭은 거리에 따라 천천히만 줄어들므로(원통파의 1/√거리 감쇠), 같은 위상으로 쌓이는 합은 이웃 수를 늘릴수록 한없이 커진다. 그런데 도선 표면의 전기장은 0이어야 하므로, 유한한 전류가 조금이라도 흐르면 이 무한히 큰 되먹임 전기장을 상쇄할 방법이 없다. 결국 경계조건을 만족하는 전류는 0뿐이다. 전류가 0이면 산란파도 없고, 격자는 마치 없는 것처럼 파동을 통과시킨다 (Wood anomaly).";
+  var WOOD_FULL = "차폐가 강해지는 큰 흐름 속에서도, 특정 조건에서는 격자가 순간적으로 투명해진다. 도선 간격이 파장의 정수배가 되면(d=λ, 2λ, 3λ…), 이웃 도선에서 도선 A까지의 거리가 모두 파장의 정수배가 되어, 모든 이웃의 산란 전기장이 A 표면에 같은 위상으로 도달한다. 이웃 기여의 진폭은 거리에 따라 천천히 줄어들 뿐이므로(원통파의 1/√거리 감쇠), 같은 위상으로 쌓이는 합은 이웃 수를 늘릴수록 한없이 커진다. 그런데 도선 표면의 전기장은 0이어야 하므로, 유한한 전류가 조금이라도 흐르면 이 무한히 큰 되먹임 전기장을 상쇄할 방법이 없다. 결국 경계조건을 만족하는 전류는 0뿐이다. 전류가 0이면 산란파도 없고, 격자는 마치 없는 것처럼 파동을 통과시킨다 (Wood anomaly).";
 
   function buildCurves() {
     var kk = k(CURVE_LAM);
@@ -1441,9 +1442,26 @@
   console.log(res.text);
   document.getElementById("gateLog").textContent = res.text;
   var badge = document.getElementById("gateBadge");
+  var devMode = new URLSearchParams(window.location.search).get("dev") === "1";
+  badge.style.display = devMode ? "" : "none";
+  document.getElementById("gateDetails").style.display = devMode ? "" : "none";
   if (res.fail === 0) {
     badge.className = "badge pass";
     badge.textContent = "자가 테스트 PASS " + res.pass + " / FAIL 0 — 렌더 진행";
+    (function applyUrlParams() {
+      var q = new URLSearchParams(window.location.search);
+      var lamQ = parseInt(q.get("lam"), 10), dQ = parseInt(q.get("d"), 10);
+      if (isNaN(lamQ) && isNaN(dQ)) return;
+      if (!isNaN(lamQ)) state.lamMM = Math.min(300, Math.max(10, lamQ));
+      if (!isNaN(dQ))   state.dMM   = Math.min(60,  Math.max(1,  dQ));
+      var ls = document.getElementById("lamSlider"), ds = document.getElementById("dSlider");
+      if (ls) ls.value = state.lamMM;
+      if (ds) ds.value = state.dMM;
+      var banner = document.getElementById("fromFieldBanner");
+      banner.textContent = "장 시뮬에서 넘어옴 (λ=" + state.lamMM + "mm, d=" + state.dMM + "mm) · 도선 반지름 0.5mm 고정";
+      banner.hidden = false;
+      // a는 건드리지 않음 — A_WIRE=0.5mm 고정 유지 (자가 테스트 앵커 불변)
+    })();
     bind(); gotoStep(1);
   } else {
     badge.className = "badge fail";

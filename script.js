@@ -498,14 +498,6 @@
     ctx.font = "bold 13px sans-serif"; ctx.textAlign = "left";
     ctx.fillStyle = "#10193a";
     ctx.fillText(BAND_TITLES[band], bx + 10, by + bh - 10);
-
-    if (band === 2) {
-      ctx.font = "11px sans-serif"; ctx.fillStyle = "#5a5a62";
-      const caption = activeTab === 0
-        ? "오른쪽=차폐영역 · 왼쪽=반사 간섭무늬 · 도선은 위아래로 무한히 이어짐 (Floquet 정확해)"
-        : "오른쪽=차폐영역 · 왼쪽=반사 간섭무늬(차폐 강할수록 정재파에 근접)";
-      ctx.fillText(caption, bx + 120, by + bh - 10);
-    }
   }
 
   function drawPolIndicator(x, y) {
@@ -561,10 +553,16 @@
     document.getElementById("infoBox").innerHTML =
       `[${modeStr}] &nbsp;N = <b>${ts.N}${activeTab === 0 ? " (자동)" : ""}</b><br>` +
       `파장 λ = <b>${shared.lam_cm.toFixed(1)} cm</b> &nbsp;(f ≈ <b>${f_GHz.toFixed(2)} GHz</b>)<br>` +
-      `간격 d = <b>${ts.d_mm.toFixed(1)} mm</b> · 반지름 a = <b>${aEff.toFixed(2)} mm</b><br>` +
+      `간격 d = <b>${(ts.d_mm / 10).toFixed(2)} cm</b> · 반지름 a = <b>${(aEff / 10).toFixed(3)} cm</b><br>` +
       `편광 <b>${shared.polParallel ? "E∥wire" : "E⊥wire"}</b> &nbsp;· &nbsp;<b>d/λ = ${dlam.toFixed(3)}</b><br>` +
       `전력 투과율 <b>T = ${(transmittance * 100).toFixed(1)} %</b>` +
       floquetLine;
+
+    const mechBtn = document.getElementById("mechanismBtn");
+    if (mechBtn) {
+      const q = transmittance < 0.5 ? "이 차폐는 왜 생길까?" : "왜 통과할까?";
+      mechBtn.innerHTML = q + " — 도선 전류의 논리 보기 <span class='arrow'>↗</span>";
+    }
   }
 
   function syncLabels() {
@@ -573,8 +571,8 @@
     const aMax0 = A_RATIO_MAX * ts0.d_mm;
     const aEff0 = Math.min(ts0.a_mm, aMax0);
     document.getElementById("a0Val").textContent =
-      ts0.a_mm.toFixed(2) + " mm" + (ts0.a_mm > aMax0 + 1e-9 ? " →" + aEff0.toFixed(2) : "");
-    document.getElementById("d0Val").textContent = ts0.d_mm.toFixed(1) + " mm";
+      (ts0.a_mm / 10).toFixed(3) + " cm" + (ts0.a_mm > aMax0 + 1e-9 ? " →" + (aEff0 / 10).toFixed(3) : "");
+    document.getElementById("d0Val").textContent = (ts0.d_mm / 10).toFixed(2) + " cm";
     document.getElementById("a0Slider").max = Math.max(0.05, aMax0).toFixed(2);
 
     // Tab 1 슬라이더 라벨
@@ -582,8 +580,8 @@
     const aMax1 = A_RATIO_MAX * ts1.d_mm;
     const aEff1 = Math.min(ts1.a_mm, aMax1);
     document.getElementById("a1Val").textContent =
-      ts1.a_mm.toFixed(2) + " mm" + (ts1.a_mm > aMax1 + 1e-9 ? " →" + aEff1.toFixed(2) : "");
-    document.getElementById("d1Val").textContent = ts1.d_mm.toFixed(1) + " mm";
+      (ts1.a_mm / 10).toFixed(3) + " cm" + (ts1.a_mm > aMax1 + 1e-9 ? " →" + (aEff1 / 10).toFixed(3) : "");
+    document.getElementById("d1Val").textContent = (ts1.d_mm / 10).toFixed(2) + " cm";
     document.getElementById("n1Val").textContent = ts1.N + " 개";
     document.getElementById("a1Slider").max = Math.max(0.05, aMax1).toFixed(2);
 
@@ -638,9 +636,33 @@
       activeTab = newTab;
       document.querySelectorAll(".tabBtn").forEach((b, i) => b.classList.toggle("active", i === newTab));
       document.querySelectorAll(".tabPane").forEach((p, i) => p.classList.toggle("active", i === newTab));
+      syncMechanismVisibility();
       recompute(); drawFrame();
     });
   });
+
+  // 메커니즘 뷰(phasor-steps) 연결 — 무한 배열 탭에서만 노출
+  function syncMechanismVisibility() {
+    document.getElementById("mechanismWrap").style.display = activeTab === 0 ? "" : "none";
+  }
+  function openMechanism() {
+    const lamOrigMM = Math.round(shared.lam_cm * 10);
+    const dOrigMM = Math.round(tabState[0].d_mm);
+    const lamMM = Math.min(300, Math.max(10, lamOrigMM));
+    const dMM = Math.min(60, Math.max(1, dOrigMM));
+    const notes = [];
+    if (lamMM !== lamOrigMM) notes.push(`λ ${lamOrigMM}mm는 범위를 벗어나 ${lamMM}mm로 전달됩니다`);
+    if (dMM !== dOrigMM) notes.push(`d ${dOrigMM}mm는 범위를 벗어나 ${dMM}mm로 전달됩니다`);
+    const hint = document.getElementById("mechanismHint");
+    if (notes.length) {
+      hint.textContent = notes.join(" · ");
+      hint.style.display = "block";
+    } else {
+      hint.style.display = "none";
+    }
+    window.open("phasor-steps/index.html?lam=" + lamMM + "&d=" + dMM, "_blank");
+  }
+  document.getElementById("mechanismBtn").addEventListener("click", openMechanism);
 
   // 편광 토글
   document.getElementById("polPar").addEventListener("click", () => setPol(true));
@@ -724,6 +746,7 @@
   // 시작
   // =====================================================================
   syncLabels();
+  syncMechanismVisibility();
   window.addEventListener("resize", resize);
   resize();       // layout 확정 + recompute + drawFrame
   selfCheck();    // 베셀·차폐 경향 검증 (내부에서 recompute 호출)

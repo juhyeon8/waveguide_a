@@ -6,6 +6,8 @@
 <details id="gateDetails"><summary>자가 테스트 로그</summary>
 <pre id="gateLog"></pre></details>
 
+<div id="fromFieldBanner" class="fromFieldBanner" hidden></div>
+
 <section id="controlBar" class="controlbar">
   <div class="ctl">
     <label for="lamSlider">λ <span class="val readnum" id="lamVal">60 mm</span></label>
@@ -57,6 +59,7 @@
 </details>
 <section id="panel2" class="stage" hidden><div class="col"><canvas id="canvas2L" width="620" height="640"></canvas></div>
   <div class="col"><canvas id="canvas2R" width="620" height="640"></canvas></div></section>
+<p id="step2Caption" class="caption" hidden>각 도선이 만드는 산란파의 크기가 정해지면, 이들을 관측점에서 모두 더해 스크린에 나타나는 무늬의 세기를 구할 수 있다. 입사파와 각 도선의 산란파는 진동수가 같고, 배열의 대칭성 때문에 산란파들은 같은 형태의 결맞는 파동이다. 도선 배열에서 수직으로 거리 L만큼 떨어진 관측점에서 이 산란파들의 합을 위상자의 합으로 나타내면, 도선이 촘촘할수록(d가 작을수록) 더해지는 위상자가 많아지고, 파장이 길수록(λ/d가 클수록) 이 위상자들이 한 방향으로 정렬되어 합이 커진다. 이것이 λ/d ≫ 1에서 차폐가 강해지는 이유다.</p>
 <details id="detail2" class="detail" hidden>
 <summary>π배 항등식 보기 ▸</summary>
 <div class="prose">
