@@ -582,13 +582,106 @@
     document.getElementById("nVal").textContent = state.N;
   }
 
-  // Task 6/7에서 각각 drawStep2Left(document.getElementById("canvas2L"))와
-  // drawStep2Right(document.getElementById("canvas2R"))로 교체된다.
-  function drawRightPlaceholder() {}
+  // ===================================================================
+  // 11. 우측 — 위상자 나선 (phasor-steps drawStep2Right 이식)
+  //     차이점: (a) 인자로 canvas 엘리먼트·forceScale (b) nMax = CORNU_HALF(3000, 원본 고정값)
+  //     대신 state.N — 나선이 정확히 N항까지만 더해진다 (c) captureMode 텍스트 생략,
+  //     수렴점 라벨은 dottedTarget에 null을 넘겨 마커만 남긴다.
+  // ===================================================================
+  function drawStep2Right(cv, forceScale) {
+    var c = prep(cv, forceScale);
+    var ctx = c.ctx, W = c.W, H = c.H;
+    var captureMode = state.captureMode;
+    var kk = k(lamM()), d = dM(), dl = state.dMM / state.lamMM;
+    var nMax = state.N;
+    var pts = cornuPartials(kk, A_WIRE, d, state.L, nMax);
+    var end = pts[pts.length - 1];
+    var target = forwardExact(kk, A_WIRE, d, state.L);
+    var s0 = s0Exact(kk, A_WIRE, d);
+    var open = nOpenOrders(dl);
+
+    if (!captureMode) {
+      panelTitle(ctx, W, "정면 관측점 P에서의 산란파 합", "복소평면 (S0_VIEW=" + S0_VIEW + " 전역 고정) · 정면 진행파 기준 위상");
+    }
+    var map = complexPlane(ctx, W, H, 50, 126, S0_VIEW);
+    var O = map({ re: 0, im: 0 });
+    clipToPlot(ctx, map);
+
+    ctx.save();
+    ctx.lineWidth = 1.5; ctx.lineJoin = "round";
+    function farBatch(iStart, iEnd) {
+      if (iEnd <= iStart) return;
+      ctx.strokeStyle = wireColor(WIRE_PAIRS_SHOWN + 1, WIRE_PAIRS_SHOWN);
+      ctx.beginPath();
+      for (var i = iStart; i <= iEnd; i++) {
+        var p = map(pts[i]);
+        if (i === iStart) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+      }
+      ctx.stroke();
+    }
+    farBatch(0, nMax - WIRE_PAIRS_SHOWN);
+    farBatch(nMax + WIRE_PAIRS_SHOWN + 1, 2 * nMax + 1);
+    for (var i2 = Math.max(0, nMax - WIRE_PAIRS_SHOWN); i2 <= Math.min(2 * nMax, nMax + WIRE_PAIRS_SHOWN); i2++) {
+      var n2 = i2 - nMax, rank2 = Math.abs(n2);
+      var p0 = map(pts[i2]), p1 = map(pts[i2 + 1]);
+      ctx.strokeStyle = wireColor(rank2, WIRE_PAIRS_SHOWN);
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.restore();
+
+    var pe = map(end);
+    arrow(ctx, O[0], O[1], pe[0], pe[1], C_INK, 2.4, 9);
+    dottedTarget(ctx, W, map(target), C_RED, captureMode ? null : (open > 1 ? "수렴점 G∞ (≠ s₀)" : "수렴점 = s₀"));
+
+    var ux = 100, uy = 96, unit = 62;
+    if (!captureMode) {
+      ctx.save();
+      ctx.font = "bold 16px system-ui, sans-serif";
+      var headTxt = "인셋: 입사파(회색·=1)  vs  s₀(빨강)";
+      var hw = ctx.measureText(headTxt).width;
+      backdrop(ctx, ux - 16, uy - 40, hw + 10, 18);
+      ctx.fillStyle = C_INK; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText(headTxt, ux - 11, uy - 38);
+      ctx.restore();
+    }
+    arrow(ctx, ux, uy, ux + unit, uy, C_GREY, 3, 9);
+    if (!captureMode) {
+      arrowLabel(ctx, W, ux + unit + 8, uy, "=1", C_GREY);
+    }
+    var sAng = Math.atan2(s0.im, s0.re), sLen = unit * mag(s0);
+    var sx = ux + sLen * Math.cos(sAng), sy = uy - sLen * Math.sin(sAng);
+    arrow(ctx, ux, uy, sx, sy, C_RED, 3, 9);
+
+    if (!captureMode) {
+      var err = relErr(end, target);
+      var rows = [["L =", state.L.toFixed(2) + " m  (" + (state.L / lamM()).toFixed(1) + " λ)", C_BLUE]];
+      if (open > 1) rows.push(["|G∞| =", mag(target).toFixed(4), C_INK]);
+      rows.push(["|s₀| =", mag(s0).toFixed(4), C_RED]);
+      rows.push(["전파 차수 =", String(open)]);
+      rows.push(["나선 오차 =", (err * 100).toFixed(2) + " %"]);
+      readout(ctx, W, 52, rows);
+
+      var s0DefRow = ["s₀ = 모든 도선의 산란 전기장을 P에서 더한 값 (입사파 = 1 기준)", C_INK];
+      if (open > 1) {
+        notes(ctx, W, H, [
+          s0DefRow,
+          ["전파 차수 " + open + "개 — 수렴점이 s₀ 하나로 안 읽힌다", C_RED],
+          ["L을 바꾸면 도착점이 움직인다 (층 2 이음매)", "#555"]
+        ]);
+      } else {
+        notes(ctx, W, H, [
+          s0DefRow,
+          ["전파 차수 1개 (λ > d) — 수렴점 = s₀", "#555"],
+          ["L을 바꿔도 도착점은 제자리 (s₀는 L에 무관)", C_BLUE]
+        ]);
+      }
+    }
+  }
 
   function render() {
     drawStep2Left(document.getElementById("canvas2L"));
-    drawRightPlaceholder();
+    drawStep2Right(document.getElementById("canvas2R"));
     syncLabels();
   }
 
