@@ -380,4 +380,49 @@
     };
   }
 
+  // ===================================================================
+  // 9. 상태 + 조작부 바인딩
+  // ===================================================================
+  var state = { lamMM: 60, dMM: 15, L: 1.00, N: 5, scale: 2, captureMode: false };
+  function lamM() { return state.lamMM / 1000; }
+  function dM() { return state.dMM / 1000; }
+
+  function syncLabels() {
+    document.getElementById("lamVal").textContent = state.lamMM.toFixed(0) + " mm";
+    document.getElementById("dVal").textContent = state.dMM.toFixed(0) + " mm";
+    document.getElementById("lVal").textContent = state.L.toFixed(2) + " m";
+    document.getElementById("nVal").textContent = state.N;
+  }
+
+  // Task 6/7에서 각각 drawStep2Left(document.getElementById("canvas2L"))와
+  // drawStep2Right(document.getElementById("canvas2R"))로 교체된다.
+  function drawLeftPlaceholder() {}
+  function drawRightPlaceholder() {}
+
+  function render() {
+    drawLeftPlaceholder();
+    drawRightPlaceholder();
+    syncLabels();
+  }
+
+  function bind() {
+    document.getElementById("lamSlider").addEventListener("input", function () { state.lamMM = +this.value; render(); });
+    document.getElementById("dSlider").addEventListener("input", function () { state.dMM = +this.value; render(); });
+    document.getElementById("lSlider").addEventListener("input", function () { state.L = +this.value; render(); });
+    document.getElementById("nSlider").addEventListener("input", function () { state.N = +this.value; render(); });
+
+    var scaleBtns = document.querySelectorAll("#scaleBtns button");
+    scaleBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        state.scale = +b.dataset.scale;
+        scaleBtns.forEach(function (x) { x.classList.toggle("active", x === b); });
+      });
+    });
+  }
+
+  if (typeof document !== "undefined") {
+    bind();
+    render();
+  }
+
 })();
