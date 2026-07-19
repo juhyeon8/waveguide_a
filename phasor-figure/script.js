@@ -738,6 +738,9 @@
   if (typeof document !== "undefined") {
     bind();
     render();
+    if (!runPaperConditionsGate()) {
+      console.warn("phasor-figure: 논문 검증 3조건 중 일부가 좌측 상한(N)을 못 채웁니다 — PX_PER_MM 또는 밴드 높이 조정 필요");
+    }
   }
 
 })();
