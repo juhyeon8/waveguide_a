@@ -381,6 +381,194 @@
   }
 
   // ===================================================================
+  // 10. 좌측 — 실공간 경로선 (phasor-steps drawStep2Left 이식)
+  //     차이점: (a) 인자로 canvas 엘리먼트·forceScale을 받는다(캡처용) (b) 실척 유지 +
+  //     min(N,20,rankMax) 상한 + "⋮" 글리프로 통일(원본의 "옅어지는 점 2개" 대신)
+  //     (c) state.captureMode일 때 설명 텍스트를 생략한다.
+  // ===================================================================
+  function drawStep2Left(cv, forceScale) {
+    var c = prep(cv, forceScale);
+    var ctx = c.ctx, W = c.W, H = c.H;
+    var captureMode = state.captureMode;
+
+    if (!captureMode) {
+      panelTitle(ctx, W, "2단계 (좌) 실공간 — 정면 관측점 P까지 경로",
+        "왼쪽: 평면파 입사(파면 간격 = λ, 치수 참조) · 오른쪽: P까지 경로(압축, 실척 아님)");
+    }
+
+    var plotTop = PLOT_TOP, plotBottom = PLOT_BOTTOM;
+    var cyA = (plotTop + plotBottom) / 2;
+    var wireX = 200;
+    var Lm = state.L, dm = dM(), lam = lamM();
+    var guardL = L_GUARD_LAMBDAS * lam;
+
+    var noteRows = null;
+    if (!captureMode) {
+      noteRows = [["● 도선(가운데 A 굵은 검정, 이웃 진한→옅은 주황)", C_INK]];
+      if (Lm >= guardL) {
+        noteRows.push(["경로선 색 = 오른쪽 나선과 동일 색 문법(거리→색)", "rgba(230,126,34,0.85)"]);
+        noteRows.push(["바깥 도선일수록 P까지 경로가 길다 (R_n 수치 참조)", "#555"]);
+      } else {
+        noteRows.push(["L이 너무 가까워 경로선·P·R_n 표시를 생략함", "#555"]);
+      }
+      noteRows.push(["회색 점선 = 입사 평면파의 파면 (간격 = 파장 λ)", C_GREY]);
+    }
+
+    var spacing = state.dMM * PX_PER_MM;
+    var nShownActual = shownPairsFor(state.N, state.dMM);
+    var dotR = Math.min(5, 0.42 * spacing);
+
+    var WAVE_PX = 40, WAVE_COUNT = 3;
+    var waveXs = [];
+    for (var wi = 0; wi < WAVE_COUNT; wi++) waveXs.push(wireX - 40 - wi * WAVE_PX);
+    ctx.save();
+    ctx.strokeStyle = "#C3C9CF"; ctx.lineWidth = 1.4; ctx.setLineDash([2, 5]);
+    waveXs.forEach(function (wx) {
+      ctx.beginPath(); ctx.moveTo(wx, plotTop); ctx.lineTo(wx, plotBottom); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // λ 치수선 — 화살표(그래픽)와 숫자 라벨 모두 유지(축 스케일 정보로 간주, captureMode에서도 유지)
+    var dimX1 = waveXs[0], dimX2 = waveXs[1], dimY = cyA + 60, dimMidX = (dimX1 + dimX2) / 2;
+    arrow(ctx, dimMidX, dimY, dimX1, dimY, C_INK, 1.4, 7);
+    arrow(ctx, dimMidX, dimY, dimX2, dimY, C_INK, 1.4, 7);
+    ctx.save();
+    ctx.font = "bold 16px system-ui, sans-serif";
+    var lamLabel = "λ = " + state.lamMM + " mm";
+    var lamLabelW = ctx.measureText(lamLabel).width;
+    backdrop(ctx, dimMidX - lamLabelW / 2 - 4, dimY - 24, lamLabelW + 8, 18);
+    ctx.fillStyle = C_INK; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText(lamLabel, dimMidX, dimY - 8);
+    ctx.restore();
+
+    if (!captureMode) {
+      arrow(ctx, 16, plotTop + 16, 155, plotTop + 16, C_GREY, 3, 10);
+      ctx.save();
+      ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_GREY;
+      ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+      ctx.fillText("평면파 입사", 16, plotTop + 6);
+      ctx.restore();
+    } else {
+      // 화살표 그래픽 자체는 유지(그래픽 요소는 남긴다는 원칙), 라벨 텍스트만 생략
+      arrow(ctx, 16, plotTop + 16, 155, plotTop + 16, C_GREY, 3, 10);
+    }
+
+    if (Lm >= guardL) {
+      var pixelL = 260 + (Lm - 0.3) / (3 - 0.3) * 120;
+      var Px = wireX + pixelL, Py = cyA;
+
+      ctx.save();
+      ctx.lineWidth = 1.3;
+      for (var rank = nShownActual; rank >= 0; rank--) {
+        ctx.strokeStyle = wireColor(rank, WIRE_PAIRS_SHOWN);
+        if (rank === 0) {
+          ctx.beginPath(); ctx.moveTo(wireX, cyA); ctx.lineTo(Px, Py); ctx.stroke();
+        } else {
+          ctx.beginPath(); ctx.moveTo(wireX, cyA - rank * spacing); ctx.lineTo(Px, Py); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(wireX, cyA + rank * spacing); ctx.lineTo(Px, Py); ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.fillStyle = C_RED;
+      ctx.beginPath(); ctx.arc(Px, Py, 6, 0, TWO_PI); ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(Px, Py, 6, 0, TWO_PI); ctx.stroke();
+      ctx.restore();
+
+      var pLabelText = "P (정면 관측점)";
+      var pLabelX = 520;
+      var pLabelY = plotBottom + 23;
+      if (!captureMode) {
+        ctx.save();
+        ctx.font = "bold 16px system-ui, sans-serif";
+        var pLabelW = ctx.measureText(pLabelText).width;
+        backdrop(ctx, pLabelX - pLabelW / 2 - 6, pLabelY - 9, pLabelW + 12, 16);
+        ctx.fillStyle = C_RED; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(pLabelText, pLabelX, pLabelY);
+        ctx.restore();
+      }
+
+      // 빨간 안내 점선 — captureMode에서도 유지(그래픽 요소)
+      ctx.save();
+      ctx.strokeStyle = C_RED; ctx.lineWidth = 1; ctx.globalAlpha = 0.55; ctx.setLineDash([3, 3]);
+      var dropY = pLabelY - 8;
+      ctx.beginPath();
+      ctx.moveTo(Px, Py + 7);
+      ctx.lineTo(Px, dropY);
+      ctx.lineTo(pLabelX, dropY);
+      ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.restore();
+
+      if (!captureMode) {
+        var rnRanks = [];
+        [0, Math.round(nShownActual / 2), nShownActual].forEach(function (rk) {
+          if (rnRanks.indexOf(rk) === -1) rnRanks.push(rk);
+        });
+        rnRanks.forEach(function (rk) {
+          var Rn = Math.hypot(Lm, rk * dm);
+          var yPix = cyA - rk * spacing;
+          arrowLabel(ctx, W, wireX + 26, yPix, "R_" + rk + " = " + Rn.toFixed(3) + " m", C_INK);
+        });
+      }
+
+      if (!captureMode) {
+        var breakX = (wireX + Px) / 2;
+        ctx.save();
+        ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = C_INK;
+        ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        var legendTop = H - noteRows.length * 18 - 8 - 3;
+        var captionY = legendTop - 8;
+        ctx.fillText("⫽  L = " + Lm.toFixed(2) + " m  (" + (Lm / lam).toFixed(1) + " λ)", breakX, captionY);
+        ctx.restore();
+      }
+    } else if (!captureMode) {
+      ctx.save();
+      ctx.font = "bold 18px system-ui, sans-serif";
+      var msg = "너무 가까움: 이 그림 부적용";
+      var mw = ctx.measureText(msg).width;
+      backdrop(ctx, W / 2 - mw / 2 - 8, cyA - 26, mw + 16, 30);
+      ctx.fillStyle = C_RED; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(msg, W / 2, cyA - 11);
+      ctx.font = "13px system-ui, sans-serif";
+      var sub = "(L = " + Lm.toFixed(2) + " m < " + L_GUARD_LAMBDAS + "λ = " + guardL.toFixed(2) + " m)";
+      var sw = ctx.measureText(sub).width;
+      backdrop(ctx, W / 2 - sw / 2 - 6, cyA + 4, sw + 12, 18);
+      ctx.fillStyle = "#8A9199";
+      ctx.fillText(sub, W / 2, cyA + 13);
+      ctx.restore();
+    }
+
+    // 도선 점 — 이웃(색) + 가운데 A(굵은 검정)
+    for (var n = 1; n <= nShownActual; n++) {
+      ctx.fillStyle = wireColor(n, WIRE_PAIRS_SHOWN);
+      ctx.beginPath(); ctx.arc(wireX, cyA - n * spacing, dotR, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA + n * spacing, dotR, 0, TWO_PI); ctx.fill();
+    }
+    ctx.fillStyle = C_INK;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.stroke();
+
+    // "⋮" — 표시가 N에 못 미칠 때(20 상한이든 밴드 물리 한계든) 배열이 계속됨을 표시. captureMode에서도 유지.
+    if (nShownActual < state.N) {
+      ctx.save();
+      ctx.font = "16px system-ui, sans-serif"; ctx.fillStyle = "#9AA3AB";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("⋮", wireX, plotTop + 8);
+      ctx.fillText("⋮", wireX, plotBottom - 8);
+      ctx.restore();
+    }
+
+    if (!captureMode) {
+      notes(ctx, W, H, noteRows);
+    }
+  }
+
+  // ===================================================================
   // 9. 상태 + 조작부 바인딩
   // ===================================================================
   var state = { lamMM: 60, dMM: 15, L: 1.00, N: 5, scale: 2, captureMode: false };
@@ -396,11 +584,10 @@
 
   // Task 6/7에서 각각 drawStep2Left(document.getElementById("canvas2L"))와
   // drawStep2Right(document.getElementById("canvas2R"))로 교체된다.
-  function drawLeftPlaceholder() {}
   function drawRightPlaceholder() {}
 
   function render() {
-    drawLeftPlaceholder();
+    drawStep2Left(document.getElementById("canvas2L"));
     drawRightPlaceholder();
     syncLabels();
   }
