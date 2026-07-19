@@ -23,4 +23,4 @@ assert.strictEqual(
 assert.strictEqual(h.needsLGuardConfirm(0.2, 0.06), true, "L=0.2m < 5*0.06m=0.3m → 경고 필요");
 assert.strictEqual(h.needsLGuardConfirm(1.0, 0.06), false, "L=1.0m >= 0.3m → 경고 불필요");
 
-console.log("PASS test-helpers.js — " + 7 + "건 통과");
+console.log("PASS test-helpers.js — " + 8 + "건 통과");
