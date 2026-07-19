@@ -1,1 +1,26 @@
 body{background:#fff;color:#111;font:16px system-ui,sans-serif}
+
+.controlbar{
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:18px;
+  margin:16px;padding:12px 16px;
+  border:1px solid #D5DBE1;border-radius:6px;
+}
+.ctl{display:flex;flex-direction:column;gap:4px;min-width:150px}
+.ctl label{font-weight:700;font-size:15px}
+.ctl .val{color:#C0392B;font-variant-numeric:tabular-nums}
+.ctl input[type=range]{width:100%;accent-color:#2471A3}
+
+.segbtns{display:flex;gap:6px}
+.segbtns button{font:inherit;font-size:15px;padding:4px 12px;border:1px solid #2471A3;
+  background:#fff;color:#2471A3;border-radius:4px;cursor:pointer}
+.segbtns button.active{background:#2471A3;color:#fff}
+.segbtns button:hover{background:#EAF2F8}
+.segbtns button.active:hover{background:#1c5a80}
+
+.captureBtn{font:inherit;font-size:15px;font-weight:700;padding:6px 16px;
+  border:1px solid #C0392B;background:#C0392B;color:#fff;border-radius:4px;cursor:pointer}
+.captureBtn:hover{background:#a5301f}
+
+.stage{display:flex;gap:18px;margin:0 16px}
+.stage .col{flex:1;min-width:0}
+canvas{width:100%;height:auto;display:block;background:#fff;border:1px solid #D5DBE1;border-radius:6px}
