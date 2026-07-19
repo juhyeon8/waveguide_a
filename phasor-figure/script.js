@@ -128,4 +128,197 @@
 
   function nOpenOrders(dOverLam) { return 2 * Math.floor(dOverLam + 1e-9) + 1; }
 
+  // ===================================================================
+  // 6. 캔버스 도우미 (phasor-steps script.js 그대로 — prep()만 forceScale 인자 추가:
+  //    캡처 시 오프스크린 캔버스를 devicePixelRatio가 아니라 선택한 배율로 그리기 위함)
+  // ===================================================================
+  function prep(cv, forceScale) {
+    var dpr = forceScale || window.devicePixelRatio || 1;
+    if (cv.dataset.ready !== "1") {
+      cv.style.width = cv.width + "px";
+      cv.dataset.logicalW = cv.width; cv.dataset.logicalH = cv.height;
+      cv.dataset.ready = "1";
+    }
+    var W = +cv.dataset.logicalW, H = +cv.dataset.logicalH;
+    var needW = Math.round(W * dpr), needH = Math.round(H * dpr);
+    if (cv.width !== needW || cv.height !== needH) {
+      cv.width = needW;
+      cv.height = needH;
+    }
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, W, H);
+    return { ctx: ctx, W: W, H: H };
+  }
+
+  function niceStep(range, target) {
+    var raw = range / target;
+    var m = Math.pow(10, Math.floor(Math.log10(raw)));
+    var n = raw / m;
+    return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * m;
+  }
+
+  function arrow(ctx, x1, y1, x2, y2, color, width, head) {
+    var dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    if (len < head * 1.2) return;
+    var a = Math.atan2(dy, dx);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(a - 0.42), y2 - head * Math.sin(a - 0.42));
+    ctx.lineTo(x2 - head * Math.cos(a + 0.42), y2 - head * Math.sin(a + 0.42));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function complexPlane(ctx, W, H, top, bottomReserve, R) {
+    var padX = 34;
+    var size = Math.min(W - padX * 2, H - top - bottomReserve);
+    var cx = W / 2, cy = top + size / 2;
+    var sc = (size / 2) / R;
+    var step = niceStep(R * 2, 5);
+    var t;
+
+    ctx.save();
+    ctx.strokeStyle = "#EDF0F3"; ctx.lineWidth = 1;
+    for (var g = -Math.floor(R / step) * step; g <= R + 1e-9; g += step) {
+      var gx = cx + g * sc, gy = cy - g * sc;
+      ctx.beginPath(); ctx.moveTo(gx, cy - size / 2); ctx.lineTo(gx, cy + size / 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - size / 2, gy); ctx.lineTo(cx + size / 2, gy); ctx.stroke();
+    }
+    ctx.strokeStyle = "#9AA3AB"; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(cx - size / 2, cy); ctx.lineTo(cx + size / 2, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - size / 2); ctx.lineTo(cx, cy + size / 2); ctx.stroke();
+    ctx.font = "13px system-ui, sans-serif"; ctx.fillStyle = "#666";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (t = -Math.floor(R / step) * step; t <= R + 1e-9; t += step) {
+      if (Math.abs(t) < 1e-9) continue;
+      ctx.fillText(fmtTick(t), cx + t * sc, cy + 5);
+    }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (t = -Math.floor(R / step) * step; t <= R + 1e-9; t += step) {
+      if (Math.abs(t) < 1e-9) continue;
+      ctx.fillText(fmtTick(t), cx - 5, cy - t * sc);
+    }
+    ctx.fillStyle = C_INK; ctx.font = "bold 15px system-ui, sans-serif";
+    ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+    ctx.fillText("Re", cx + size / 2, cy - 5);
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText("Im", cx + 6, cy - size / 2);
+    ctx.fillStyle = "#666";
+    ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, TWO_PI); ctx.fill();
+    ctx.restore();
+
+    var map = function (z) { return [cx + z.re * sc, cy - z.im * sc]; };
+    map.box = { x: cx - size / 2, y: cy - size / 2, w: size, h: size };
+    return map;
+  }
+
+  function clipToPlot(ctx, map) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(map.box.x, map.box.y, map.box.w, map.box.h);
+    ctx.clip();
+  }
+
+  function backdrop(ctx, x, y, w, h) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
+
+  function fmtTick(t) {
+    var a = Math.abs(t);
+    if (a >= 1000 || (a < 0.01 && a > 0)) return t.toExponential(0);
+    return String(Math.round(t * 1000) / 1000);
+  }
+
+  function dottedTarget(ctx, W, p, color, label) {
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.arc(p[0], p[1], 9, 0, TWO_PI); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(p[0] - 13, p[1]); ctx.lineTo(p[0] + 13, p[1]);
+    ctx.moveTo(p[0], p[1] - 13); ctx.lineTo(p[0], p[1] + 13);
+    ctx.stroke();
+    if (label) {
+      ctx.font = "bold 16px system-ui, sans-serif";
+      var w = ctx.measureText(label).width;
+      var lx = Math.min(Math.max(p[0], w / 2 + 6), W - w / 2 - 6);
+      backdrop(ctx, lx - w / 2 - 3, p[1] - 32, w + 6, 17);
+      ctx.fillStyle = color; ctx.textBaseline = "bottom"; ctx.textAlign = "center";
+      ctx.fillText(label, lx, p[1] - 16);
+    }
+    ctx.restore();
+  }
+
+  function panelTitle(ctx, W, text, sub) {
+    ctx.save();
+    ctx.font = "bold 17px system-ui, sans-serif";
+    ctx.fillStyle = C_INK; ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText(text, 10, 8);
+    if (sub) {
+      ctx.font = "13px system-ui, sans-serif"; ctx.fillStyle = "#666";
+      ctx.fillText(sub, 10, 29);
+    }
+    ctx.restore();
+  }
+
+  function readout(ctx, W, y, rows) {
+    ctx.save();
+    ctx.font = "bold 16px system-ui, sans-serif";
+    var wmax = 0;
+    rows.forEach(function (r) { wmax = Math.max(wmax, ctx.measureText(r[0] + " " + r[1]).width); });
+    backdrop(ctx, W - 14 - wmax, y - 3, wmax + 10, rows.length * 20 + 4);
+    ctx.textAlign = "right"; ctx.textBaseline = "top";
+    rows.forEach(function (r, i) {
+      ctx.fillStyle = r[2] || C_INK;
+      ctx.fillText(r[0] + " " + r[1], W - 8, y + i * 20);
+    });
+    ctx.restore();
+  }
+
+  function notes(ctx, W, H, rows) {
+    ctx.save();
+    ctx.font = "bold 16px system-ui, sans-serif";
+    var wmax = 0;
+    rows.forEach(function (r) { wmax = Math.max(wmax, ctx.measureText(r[0]).width); });
+    var y0 = H - rows.length * 18 - 8;
+    backdrop(ctx, 6, y0 - 3, wmax + 10, rows.length * 18 + 6);
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    rows.forEach(function (r, i) {
+      ctx.fillStyle = r[1] || "#555";
+      ctx.fillText(r[0], 10, y0 + i * 18);
+    });
+    ctx.restore();
+  }
+
+  // ===================================================================
+  // 7. 색 문법 — 1단계와 동일 램프. WIRE_PAIRS_SHOWN(색 정규화용, =10)은
+  //    좌측 표시 쌍 수 상한(LEFT_PAIR_CAP=20, Task 3)과 별개 상수다.
+  // ===================================================================
+  var WIRE_PAIRS_SHOWN = 10;
+  function wireColor(rank, total) {
+    var t = Math.min(1, rank / Math.max(1, total));
+    var r = Math.round(123 + (245 - 123) * t);
+    var g = Math.round(45 + (197 - 45) * t);
+    var b = Math.round(0 + (66 - 0) * t);
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  function arrowLabel(ctx, W, x, y, text, color) {
+    ctx.save();
+    ctx.font = "bold 16px system-ui, sans-serif";
+    var w = ctx.measureText(text).width;
+    var lx = Math.min(Math.max(x, 4), W - w - 4);
+    backdrop(ctx, lx - 3, y - 9, w + 6, 16);
+    ctx.fillStyle = color; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    ctx.fillText(text, lx, y);
+    ctx.restore();
+  }
+
 })();
