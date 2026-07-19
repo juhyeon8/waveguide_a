@@ -321,4 +321,63 @@
     ctx.restore();
   }
 
+  // ===================================================================
+  // 8. 레이아웃 상수 + 순수 헬퍼 (Node로 단위 테스트 가능 — DOM 의존 없음)
+  // ===================================================================
+  var STAGE_W = 620, STAGE_H = 640;
+  var PLOT_TOP = 60, PLOT_BOTTOM = STAGE_H - 90;
+  var LEFT_PAIR_CAP = 20;
+  var L_GUARD_LAMBDAS = 5;
+  var S0_VIEW = 1.152;
+  PX_PER_MM = 1.3;   // Task 1에서 3으로 임시 선언했던 것을 재정의 — 검증 3조건 게이트 통과용(아래 주석 참조)
+  // PX_PER_MM=1.3 근거: 좌측 밴드 halfBand=(PLOT_BOTTOM-PLOT_TOP)/2=245px. 논문 검증조건 A(d=30mm)에서
+  // rankMax=floor(245/(30*PX_PER_MM))가 5 이상이어야 한다. PX_PER_MM=3이면 rankMax=2로 미달, 1.3이면
+  // rankMax=6으로 통과(runPaperConditionsGate가 이 값들을 렌더 전에 콘솔로 재확인한다).
+
+  function shownPairsFor(N, dMM) {
+    var spacing = dMM * PX_PER_MM;
+    var halfBand = (PLOT_BOTTOM - PLOT_TOP) / 2;
+    var rankMax = Math.max(0, Math.floor(halfBand / spacing));
+    return Math.min(N, LEFT_PAIR_CAP, rankMax);
+  }
+
+  function fmtLForFilename(Lm) {
+    return Lm.toFixed(2).replace(".", "p");
+  }
+
+  function buildFilename(lamMM, dMM, Lm, N, side, scale) {
+    return "lam" + Math.round(lamMM) + "_d" + Math.round(dMM) + "_L" + fmtLForFilename(Lm) +
+      "_N" + Math.round(N) + "_" + side + "_x" + scale + ".png";
+  }
+
+  function needsLGuardConfirm(Lm, lam) {
+    return Lm < L_GUARD_LAMBDAS * lam;
+  }
+
+  function runPaperConditionsGate() {
+    var conditions = [
+      { lam: 60, d: 30, N: 5, label: "조건A (λ/d=2)" },
+      { lam: 60, d: 15, N: 5, label: "조건B (λ/d=4)" },
+      { lam: 120, d: 15, N: 5, label: "조건C (λ/d=8)" }
+    ];
+    var allOk = true;
+    conditions.forEach(function (c) {
+      var shown = shownPairsFor(c.N, c.d);
+      var ok = shown === c.N;
+      if (!ok) allOk = false;
+      console.log((ok ? "PASS " : "FAIL ") + c.label + " N=" + c.N + " d=" + c.d + "mm → 좌측 표시 " +
+        shown + "쌍" + (ok ? "" : " (기대 " + c.N + "쌍, rankMax 부족 — PX_PER_MM 또는 밴드 높이 조정 필요)"));
+    });
+    return allOk;
+  }
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      shownPairsFor: shownPairsFor,
+      buildFilename: buildFilename,
+      needsLGuardConfirm: needsLGuardConfirm,
+      runPaperConditionsGate: runPaperConditionsGate
+    };
+  }
+
 })();
