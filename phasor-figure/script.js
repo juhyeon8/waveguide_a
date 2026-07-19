@@ -698,6 +698,41 @@
         scaleBtns.forEach(function (x) { x.classList.toggle("active", x === b); });
       });
     });
+
+    document.getElementById("captureBtn").addEventListener("click", doCapture);
+  }
+
+  // ===================================================================
+  // 12. 캡처 — L 유효성 confirm → 오프스크린 고해상도 렌더 → PNG 2장 저장
+  // ===================================================================
+  function saveCanvas(cv, filename) {
+    cv.toBlob(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }, "image/png");
+  }
+
+  function doCapture() {
+    if (needsLGuardConfirm(state.L, lamM())) {
+      var msg = "현재 관측 거리 L(" + state.L.toFixed(2) + "m)이 파장 λ(" + state.lamMM +
+        "mm)의 5배보다 짧습니다. 이 조건에서는 2단계(좌) 경로 그림이 물리적으로 부적용이며, " +
+        "논문 그림으로 부적절할 수 있습니다. 그래도 캡처할까요?";
+      if (!window.confirm(msg)) return;
+    }
+
+    state.captureMode = true;
+    var offL = document.createElement("canvas"); offL.width = STAGE_W; offL.height = STAGE_H;
+    var offR = document.createElement("canvas"); offR.width = STAGE_W; offR.height = STAGE_H;
+    drawStep2Left(offL, state.scale);
+    drawStep2Right(offR, state.scale);
+    state.captureMode = false;
+    render();   // 화면 캔버스를 정상(텍스트 포함) 상태로 재렌더
+
+    saveCanvas(offL, buildFilename(state.lamMM, state.dMM, state.L, state.N, "left", state.scale));
+    saveCanvas(offR, buildFilename(state.lamMM, state.dMM, state.L, state.N, "right", state.scale));
   }
 
   if (typeof document !== "undefined") {
