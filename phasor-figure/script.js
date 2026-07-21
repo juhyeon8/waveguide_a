@@ -345,9 +345,9 @@
     return Lm.toFixed(2).replace(".", "p");
   }
 
-  function buildFilename(lamMM, dMM, Lm, N, side, scale) {
+  function buildFilename(lamMM, dMM, Lm, N, side, style, scale) {
     return "lam" + Math.round(lamMM) + "_d" + Math.round(dMM) + "_L" + fmtLForFilename(Lm) +
-      "_N" + Math.round(N) + "_" + side + "_x" + scale + ".png";
+      "_N" + Math.round(N) + "_" + side + "_" + style + "_x" + scale + ".png";
   }
 
   function needsLGuardConfirm(Lm, lam) {
@@ -561,7 +561,7 @@
   // ===================================================================
   // 9. 상태 + 조작부 바인딩
   // ===================================================================
-  var state = { lamMM: 60, dMM: 15, L: 1.00, N: 5, scale: 2, captureMode: false };
+  var state = { lamMM: 60, dMM: 15, L: 1.00, N: 5, scale: 2, captureMode: false, phasorStyle: "spiral" };
   function lamM() { return state.lamMM / 1000; }
   function dM() { return state.dMM / 1000; }
 
@@ -689,6 +689,15 @@
       });
     });
 
+    var styleBtns = document.querySelectorAll("#styleBtns button");
+    styleBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        state.phasorStyle = b.dataset.style;
+        styleBtns.forEach(function (x) { x.classList.toggle("active", x === b); });
+        render();
+      });
+    });
+
     document.getElementById("captureBtn").addEventListener("click", doCapture);
   }
 
@@ -721,8 +730,8 @@
     state.captureMode = false;
     render();   // 화면 캔버스를 정상(텍스트 포함) 상태로 재렌더
 
-    saveCanvas(offL, buildFilename(state.lamMM, state.dMM, state.L, state.N, "left", state.scale));
-    saveCanvas(offR, buildFilename(state.lamMM, state.dMM, state.L, state.N, "right", state.scale));
+    saveCanvas(offL, buildFilename(state.lamMM, state.dMM, state.L, state.N, "left", state.phasorStyle, state.scale));
+    saveCanvas(offR, buildFilename(state.lamMM, state.dMM, state.L, state.N, "right", state.phasorStyle, state.scale));
   }
 
   if (typeof document !== "undefined") {

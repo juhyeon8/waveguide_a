@@ -9,14 +9,14 @@ assert.strictEqual(h.shownPairsFor(200, 3), 20, "N=200,d=3mm → 밴드에 20쌍
 // N이 상한보다 작으면 N 그대로
 assert.strictEqual(h.shownPairsFor(3, 3), 3, "N=3 < 20이면 정확히 3쌍");
 
-// buildFilename
+// buildFilename — 좌우 모두 항상 style 접미사 포함(2026-07-21 사용자 확정)
 assert.strictEqual(
-  h.buildFilename(60, 15, 1.00, 5, "left", 2),
-  "lam60_d15_L1p00_N5_left_x2.png"
+  h.buildFilename(60, 15, 1.00, 5, "left", "spiral", 2),
+  "lam60_d15_L1p00_N5_left_spiral_x2.png"
 );
 assert.strictEqual(
-  h.buildFilename(120, 3, 0.30, 200, "right", 3),
-  "lam120_d3_L0p30_N200_right_x3.png"
+  h.buildFilename(120, 3, 0.30, 200, "right", "B", 3),
+  "lam120_d3_L0p30_N200_right_B_x3.png"
 );
 
 // needsLGuardConfirm: L < 5λ 일 때만 true
