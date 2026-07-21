@@ -611,11 +611,17 @@
     }
     farBatch(0, nMax - WIRE_PAIRS_SHOWN);
     farBatch(nMax + WIRE_PAIRS_SHOWN + 1, 2 * nMax + 1);
+    var style = state.phasorStyle;
     for (var i2 = Math.max(0, nMax - WIRE_PAIRS_SHOWN); i2 <= Math.min(2 * nMax, nMax + WIRE_PAIRS_SHOWN); i2++) {
       var n2 = i2 - nMax, rank2 = Math.abs(n2);
       var p0 = map(pts[i2]), p1 = map(pts[i2 + 1]);
-      ctx.strokeStyle = wireColor(rank2, WIRE_PAIRS_SHOWN);
-      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+      var col2 = wireColor(rank2, WIRE_PAIRS_SHOWN);
+      if (style === "B") {
+        arrow(ctx, p0[0], p0[1], p1[0], p1[1], col2, 1.5, 6);
+      } else {
+        ctx.strokeStyle = col2;
+        ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+      }
     }
     ctx.restore();
     ctx.restore();

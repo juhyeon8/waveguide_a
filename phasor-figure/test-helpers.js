@@ -77,3 +77,39 @@ assert.ok(capTexts.indexOf("Im") !== -1, "captureMode=true에서도 Im 라벨은
 assert.ok(capTexts.some(function (t) { return /^-?[\d.]+(e[+-]?\d+)?$/.test(t); }),
   "captureMode=true에서도 눈금 숫자는 있어야 함");
 console.log("PASS 4-3 게이트(설명 라벨 완전 제거, 눈금/Re/Im 유지)");
+
+// ==================== 버전 B(선분 화살촉) ====================
+function renderRightWithStyle(style) {
+  freshState();
+  h.state.phasorStyle = style;
+  var cv = stub.createStubCanvas(620, 640);
+  h.drawStep2Right(cv, 1);
+  return cv._ctx;
+}
+function lineToPoints(ctx) {
+  // segment lineTo만 수집 (stroke() 바로 앞의 lineTo, 화살촉 lineTo는 제외)
+  var points = [];
+  for (var i = 0; i < ctx.calls.length; i++) {
+    if (ctx.calls[i].name === "stroke") {
+      for (var j = i - 1; j >= 0; j--) {
+        if (ctx.calls[j].name === "lineTo") {
+          points.push(ctx.calls[j].args);
+          break;
+        }
+        if (ctx.calls[j].name === "beginPath") break;
+      }
+    }
+  }
+  return points;
+}
+function fillCount(ctx) {
+  return ctx.calls.filter(function (c) { return c.name === "fill"; }).length;
+}
+
+var ctxSpiral = renderRightWithStyle("spiral");
+var ctxB = renderRightWithStyle("B");
+assert.deepStrictEqual(lineToPoints(ctxB), lineToPoints(ctxSpiral),
+  "B 스타일도 spiral과 동일한 선분 좌표를 그려야 함(화살촉만 추가)");
+assert.ok(fillCount(ctxB) > fillCount(ctxSpiral),
+  "B 스타일은 화살촉(fill) 호출이 spiral보다 많아야 함");
+console.log("PASS 버전 B(선분 화살촉): 좌표 동일·화살촉 fill 호출 증가 확인");
