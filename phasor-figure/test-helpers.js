@@ -131,3 +131,19 @@ var ctxA = renderRightWithStyle("A");
 assert.notDeepStrictEqual(lineToPoints(ctxA), lineToPoints(renderRightWithStyle("spiral")),
   "style A는 spiral과 다른 경로(원점발 화살표)를 그려야 함");
 console.log("PASS 버전 A 렌더 분기 확인(spiral과 다른 좌표 생성)");
+
+// ==================== 게이트 4-1 / 4-5 ====================
+// 4-1: 조건A(d=30mm,N=5,L=1.00m) 스프레드 수동 계산과 대조
+var nShownA = Math.min(5, 10); // WIRE_PAIRS_SHOWN=10
+var expectedSpreadA = Math.sqrt(Math.hypot(1.00, nShownA * 0.030) / 1.00);
+var spreadA = h.amplitudeSpread(1.00, 30, nShownA);
+assert.ok(Math.abs(spreadA - expectedSpreadA) < 1e-12, "조건A 스프레드 계산 불일치");
+assert.ok(spreadA > 1, "스프레드는 항상 1보다 커야 함(Rmax > Rmin)");
+
+// 4-5: PAPER_CONDITIONS의 d/λ가 모두 비정수인지 확인(우드 이상 회피)
+h.PAPER_CONDITIONS.forEach(function (c) {
+  assert.ok(!Number.isInteger(c.d / c.lam), c.label + "의 d/λ가 정수 — 우드 이상 위험");
+});
+assert.strictEqual(h.PAPER_CONDITIONS.length, 3, "논문 검증 조건은 3개(A/B/C)여야 함");
+
+console.log("PASS 게이트 4-1(스프레드 계산)/4-5(비정수 d/λ) 확인");

@@ -368,19 +368,36 @@
     return Lm < L_GUARD_LAMBDAS * lam;
   }
 
+  var PAPER_CONDITIONS = [
+    { lam: 60, d: 30, N: 5, label: "조건A (λ/d=2)" },
+    { lam: 60, d: 15, N: 5, label: "조건B (λ/d=4)" },
+    { lam: 120, d: 15, N: 5, label: "조건C (λ/d=8)" }
+  ];
+  var GATE_REPRESENTATIVE_L = 1.00; // 게이트 리포트용 대표 L(m)
+
+  // 4-1: spread = sqrt(Rmax/Rmin), Rmin=L(n=0), Rmax=hypot(L, nShown*d). 판정 없이 출력만.
+  function amplitudeSpread(Lm, dMM, nShown) {
+    var dm = dMM / 1000;
+    var rMin = Lm;
+    var rMax = Math.hypot(Lm, nShown * dm);
+    return Math.sqrt(rMax / rMin);
+  }
+
   function runPaperConditionsGate() {
-    var conditions = [
-      { lam: 60, d: 30, N: 5, label: "조건A (λ/d=2)" },
-      { lam: 60, d: 15, N: 5, label: "조건B (λ/d=4)" },
-      { lam: 120, d: 15, N: 5, label: "조건C (λ/d=8)" }
-    ];
     var allOk = true;
-    conditions.forEach(function (c) {
+    PAPER_CONDITIONS.forEach(function (c) {
       var shown = shownPairsFor(c.N, c.d);
       var ok = shown === c.N;
       if (!ok) allOk = false;
       console.log((ok ? "PASS " : "FAIL ") + c.label + " N=" + c.N + " d=" + c.d + "mm → 좌측 표시 " +
         shown + "쌍" + (ok ? "" : " (기대 " + c.N + "쌍, rankMax 부족 — PX_PER_MM 또는 밴드 높이 조정 필요)"));
+
+      var nShownRight = Math.min(c.N, WIRE_PAIRS_SHOWN);
+      var spread = amplitudeSpread(GATE_REPRESENTATIVE_L, c.d, nShownRight);
+      console.log("  [4-1] 스프레드(L=" + GATE_REPRESENTATIVE_L.toFixed(2) + "m) sqrt(Rmax/Rmin) = " + spread.toFixed(4));
+
+      var dOverLam = c.d / c.lam;
+      console.log("  [4-5] d/λ = " + dOverLam + (Number.isInteger(dOverLam) ? " (정수! 우드 회피 조건 재확인 필요)" : " (비정수, 안전)"));
     });
     return allOk;
   }
@@ -783,7 +800,9 @@
       drawStep2Right: drawStep2Right,
       state: state,
       wirePhasors: wirePhasors,
-      cornuPartials: cornuPartials
+      cornuPartials: cornuPartials,
+      amplitudeSpread: amplitudeSpread,
+      PAPER_CONDITIONS: PAPER_CONDITIONS
     };
   }
 
