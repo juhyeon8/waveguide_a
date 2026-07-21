@@ -371,15 +371,6 @@
     return allOk;
   }
 
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = {
-      shownPairsFor: shownPairsFor,
-      buildFilename: buildFilename,
-      needsLGuardConfirm: needsLGuardConfirm,
-      runPaperConditionsGate: runPaperConditionsGate
-    };
-  }
-
   // ===================================================================
   // 10. 좌측 — 실공간 경로선 (phasor-steps drawStep2Left 이식)
   //     차이점: (a) 인자로 canvas 엘리먼트·forceScale을 받는다(캡처용) (b) 실척 유지 +
@@ -449,9 +440,6 @@
       ctx.textAlign = "left"; ctx.textBaseline = "bottom";
       ctx.fillText("평면파 입사", 16, plotTop + 6);
       ctx.restore();
-    } else {
-      // 화살표 그래픽 자체는 유지(그래픽 요소는 남긴다는 원칙), 라벨 텍스트만 생략
-      arrow(ctx, 16, plotTop + 16, 155, plotTop + 16, C_GREY, 3, 10);
     }
 
     if (Lm >= guardL) {
@@ -491,17 +479,19 @@
         ctx.restore();
       }
 
-      // 빨간 안내 점선 — captureMode에서도 유지(그래픽 요소)
-      ctx.save();
-      ctx.strokeStyle = C_RED; ctx.lineWidth = 1; ctx.globalAlpha = 0.55; ctx.setLineDash([3, 3]);
-      var dropY = pLabelY - 8;
-      ctx.beginPath();
-      ctx.moveTo(Px, Py + 7);
-      ctx.lineTo(Px, dropY);
-      ctx.lineTo(pLabelX, dropY);
-      ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = 1;
-      ctx.restore();
+      if (!captureMode) {
+        // 빨간 안내 점선 — captureMode에서는 제거(2026-07-21 지시서 §2-1 항목3)
+        ctx.save();
+        ctx.strokeStyle = C_RED; ctx.lineWidth = 1; ctx.globalAlpha = 0.55; ctx.setLineDash([3, 3]);
+        var dropY = pLabelY - 8;
+        ctx.beginPath();
+        ctx.moveTo(Px, Py + 7);
+        ctx.lineTo(Px, dropY);
+        ctx.lineTo(pLabelX, dropY);
+        ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+        ctx.restore();
+      }
 
       if (!captureMode) {
         var rnRanks = [];
@@ -741,6 +731,18 @@
     if (!runPaperConditionsGate()) {
       console.warn("phasor-figure: 논문 검증 3조건 중 일부가 좌측 상한(N)을 못 채웁니다 — PX_PER_MM 또는 밴드 높이 조정 필요");
     }
+  }
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      shownPairsFor: shownPairsFor,
+      buildFilename: buildFilename,
+      needsLGuardConfirm: needsLGuardConfirm,
+      runPaperConditionsGate: runPaperConditionsGate,
+      drawStep2Left: drawStep2Left,
+      drawStep2Right: drawStep2Right,
+      state: state
+    };
   }
 
 })();

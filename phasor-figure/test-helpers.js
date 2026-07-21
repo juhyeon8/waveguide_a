@@ -24,3 +24,56 @@ assert.strictEqual(h.needsLGuardConfirm(0.2, 0.06), true, "L=0.2m < 5*0.06m=0.3m
 assert.strictEqual(h.needsLGuardConfirm(1.0, 0.06), false, "L=1.0m >= 0.3m → 경고 불필요");
 
 console.log("PASS test-helpers.js — " + 8 + "건 통과");
+
+// ==================== 게이트 4-3 / 4-4 (captureMode 라벨·그래픽 제거) ====================
+var stub = require("./canvas-stub.js");
+
+function freshState() {
+  h.state.captureMode = false;
+  h.state.lamMM = 60; h.state.dMM = 15; h.state.L = 1.00; h.state.N = 5;
+  h.state.phasorStyle = "spiral";
+}
+
+function renderLeft(captureMode) {
+  freshState();
+  h.state.captureMode = captureMode;
+  var cv = stub.createStubCanvas(620, 640);
+  h.drawStep2Left(cv, 1);
+  return cv._ctx;
+}
+
+function renderRight(captureMode) {
+  freshState();
+  h.state.captureMode = captureMode;
+  var cv = stub.createStubCanvas(620, 640);
+  h.drawStep2Right(cv, 1);
+  return cv._ctx;
+}
+
+// --- 4-4: 그래픽 제거 확인 ---
+var leftCap = renderLeft(true), leftNorm = renderLeft(false);
+assert.strictEqual(
+  stub.hasCall(leftCap, "moveTo", function (a) { return a[0] === 16 && a[1] === 76; }),
+  false, "captureMode=true: 회색 '평면파 입사' 화살표가 그려지면 안 됨");
+assert.strictEqual(
+  stub.hasCall(leftNorm, "moveTo", function (a) { return a[0] === 16 && a[1] === 76; }),
+  true, "captureMode=false: 회색 입사 화살표는 유지되어야 함(회귀 확인)");
+assert.strictEqual(
+  stub.hasCall(leftCap, "setLineDash", function (a) { return a[0] && a[0][0] === 3 && a[0][1] === 3; }),
+  false, "captureMode=true: 빨간 P 안내 점선이 그려지면 안 됨");
+assert.strictEqual(
+  stub.hasCall(leftNorm, "setLineDash", function (a) { return a[0] && a[0][0] === 3 && a[0][1] === 3; }),
+  true, "captureMode=false: 빨간 P 안내 점선은 유지되어야 함(회귀 확인)");
+console.log("PASS 4-4 게이트(회색 입사 화살표·빨간 P 점선 제거 확인)");
+
+// --- 4-3: 라벨 제거 완전성 ---
+var ALLOWED = /^(-?[\d.]+(e[+-]?\d+)?|Re|Im|λ = \d+ mm)$/;
+var capTexts = stub.fillTextCalls(leftCap).concat(stub.fillTextCalls(renderRight(true)));
+capTexts.forEach(function (t) {
+  assert.ok(ALLOWED.test(t), "captureMode=true에서 설명 라벨 누출: \"" + t + "\"");
+});
+assert.ok(capTexts.indexOf("Re") !== -1, "captureMode=true에서도 Re 라벨은 있어야 함");
+assert.ok(capTexts.indexOf("Im") !== -1, "captureMode=true에서도 Im 라벨은 있어야 함");
+assert.ok(capTexts.some(function (t) { return /^-?[\d.]+(e[+-]?\d+)?$/.test(t); }),
+  "captureMode=true에서도 눈금 숫자는 있어야 함");
+console.log("PASS 4-3 게이트(설명 라벨 완전 제거, 눈금/Re/Im 유지)");
