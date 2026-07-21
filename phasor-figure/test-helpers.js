@@ -113,3 +113,21 @@ assert.deepStrictEqual(lineToPoints(ctxB), lineToPoints(ctxSpiral),
 assert.ok(fillCount(ctxB) > fillCount(ctxSpiral),
   "B 스타일은 화살촉(fill) 호출이 spiral보다 많아야 함");
 console.log("PASS 버전 B(선분 화살촉): 좌표 동일·화살촉 fill 호출 증가 확인");
+
+// ==================== 버전 A(원점 다발) + 게이트 4-2 ====================
+var kk42 = 2 * Math.PI / 0.06, a42 = 0.0005, d42 = 0.015, L42 = 1.00, nMax42 = 5;
+var vecs42 = h.wirePhasors(kk42, a42, d42, L42, nMax42);
+assert.strictEqual(vecs42.length, 2 * nMax42 + 1, "wirePhasors 길이는 2*nMax+1이어야 함");
+var sum42 = vecs42.reduce(function (s, v) { return { re: s.re + v.re, im: s.im + v.im }; }, { re: 0, im: 0 });
+var pts42 = h.cornuPartials(kk42, a42, d42, L42, nMax42);
+var end42 = pts42[pts42.length - 1];
+var relErr42 = Math.hypot(sum42.re - end42.re, sum42.im - end42.im) / Math.hypot(end42.re, end42.im);
+assert.ok(relErr42 < 1e-9,
+  "버전 A 위상자 전체 합이 나선 끝점(=pe가 가리키는 벡터)과 불일치, 상대오차=" + relErr42);
+console.log("PASS 게이트 4-2(버전 A 벡터합 정합, 상대오차=" + relErr42.toExponential(2) + ")");
+
+// 렌더 스모크 체크: style A는 spiral과 다른 그리기 좌표를 만들어야 함(실제로 분기 탔는지 확인)
+var ctxA = renderRightWithStyle("A");
+assert.notDeepStrictEqual(lineToPoints(ctxA), lineToPoints(renderRightWithStyle("spiral")),
+  "style A는 spiral과 다른 경로(원점발 화살표)를 그려야 함");
+console.log("PASS 버전 A 렌더 분기 확인(spiral과 다른 좌표 생성)");

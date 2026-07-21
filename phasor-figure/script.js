@@ -112,6 +112,20 @@
     return pts;
   }
 
+  // A 버전(원점 기준 다발) 렌더 전용 — 물리 코어(hankel0/currentExact) 조합만, 로직 변경 없음.
+  // cornuPartials의 각 선분 pts[i+1]-pts[i]와 수학적으로 동일한 값이지만, 독립적으로 재계산해
+  // 렌더가 실제로 올바른 도선별 위상자를 그리는지 4-2 게이트가 교차검증할 수 있게 한다.
+  function wirePhasors(k, a, d, L, nMax) {
+    var I = currentExact(k, a, d);
+    var rot = cExp(-k * L);
+    var out = new Array(2 * nMax + 1);
+    for (var n = -nMax; n <= nMax; n++) {
+      var v = cMul(I, hankel0(k * Math.hypot(L, n * d)));
+      out[n + nMax] = cMul(v, rot);
+    }
+    return out;
+  }
+
   function forwardExact(k, a, d, L) {
     var I = currentExact(k, a, d), tpd = TWO_PI / d;
     var s = { re: 0, im: 0 };
@@ -597,33 +611,44 @@
     var O = map({ re: 0, im: 0 });
     clipToPlot(ctx, map);
 
-    ctx.save();
-    ctx.lineWidth = 1.5; ctx.lineJoin = "round";
-    function farBatch(iStart, iEnd) {
-      if (iEnd <= iStart) return;
-      ctx.strokeStyle = wireColor(WIRE_PAIRS_SHOWN + 1, WIRE_PAIRS_SHOWN);
-      ctx.beginPath();
-      for (var i = iStart; i <= iEnd; i++) {
-        var p = map(pts[i]);
-        if (i === iStart) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
-      }
-      ctx.stroke();
-    }
-    farBatch(0, nMax - WIRE_PAIRS_SHOWN);
-    farBatch(nMax + WIRE_PAIRS_SHOWN + 1, 2 * nMax + 1);
     var style = state.phasorStyle;
-    for (var i2 = Math.max(0, nMax - WIRE_PAIRS_SHOWN); i2 <= Math.min(2 * nMax, nMax + WIRE_PAIRS_SHOWN); i2++) {
-      var n2 = i2 - nMax, rank2 = Math.abs(n2);
-      var p0 = map(pts[i2]), p1 = map(pts[i2 + 1]);
-      var col2 = wireColor(rank2, WIRE_PAIRS_SHOWN);
-      if (style === "B") {
-        arrow(ctx, p0[0], p0[1], p1[0], p1[1], col2, 1.5, 6);
-      } else {
-        ctx.strokeStyle = col2;
-        ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+    if (style === "A") {
+      var vecs = wirePhasors(kk, A_WIRE, d, state.L, nMax);
+      ctx.save();
+      for (var i3 = Math.max(0, nMax - WIRE_PAIRS_SHOWN); i3 <= Math.min(2 * nMax, nMax + WIRE_PAIRS_SHOWN); i3++) {
+        var n3 = i3 - nMax, rank3 = Math.abs(n3);
+        var pv = map(vecs[n3 + nMax]);
+        arrow(ctx, O[0], O[1], pv[0], pv[1], wireColor(rank3, WIRE_PAIRS_SHOWN), 1.5, 6);
       }
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.lineWidth = 1.5; ctx.lineJoin = "round";
+      function farBatch(iStart, iEnd) {
+        if (iEnd <= iStart) return;
+        ctx.strokeStyle = wireColor(WIRE_PAIRS_SHOWN + 1, WIRE_PAIRS_SHOWN);
+        ctx.beginPath();
+        for (var i = iStart; i <= iEnd; i++) {
+          var p = map(pts[i]);
+          if (i === iStart) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+        }
+        ctx.stroke();
+      }
+      farBatch(0, nMax - WIRE_PAIRS_SHOWN);
+      farBatch(nMax + WIRE_PAIRS_SHOWN + 1, 2 * nMax + 1);
+      for (var i2 = Math.max(0, nMax - WIRE_PAIRS_SHOWN); i2 <= Math.min(2 * nMax, nMax + WIRE_PAIRS_SHOWN); i2++) {
+        var n2 = i2 - nMax, rank2 = Math.abs(n2);
+        var p0 = map(pts[i2]), p1 = map(pts[i2 + 1]);
+        var col2 = wireColor(rank2, WIRE_PAIRS_SHOWN);
+        if (style === "B") {
+          arrow(ctx, p0[0], p0[1], p1[0], p1[1], col2, 1.5, 6);
+        } else {
+          ctx.strokeStyle = col2;
+          ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+        }
+      }
+      ctx.restore();
     }
-    ctx.restore();
     ctx.restore();
 
     var pe = map(end);
@@ -756,7 +781,9 @@
       runPaperConditionsGate: runPaperConditionsGate,
       drawStep2Left: drawStep2Left,
       drawStep2Right: drawStep2Right,
-      state: state
+      state: state,
+      wirePhasors: wirePhasors,
+      cornuPartials: cornuPartials
     };
   }
 
