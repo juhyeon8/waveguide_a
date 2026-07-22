@@ -19,6 +19,13 @@ assert.strictEqual(
   "lam120_d3_L0p30_N200_right_B_x3.png"
 );
 
+// ==================== 캡처 파일명 — center 케이스 ====================
+assert.strictEqual(
+  h.buildFilename(60, 15, 1.00, 5, "center", "spiral", 2),
+  "lam60_d15_L1p00_N5_center_spiral_x2.png"
+);
+console.log("PASS buildFilename center 케이스");
+
 // needsLGuardConfirm: L < 5λ 일 때만 true
 assert.strictEqual(h.needsLGuardConfirm(0.2, 0.06), true, "L=0.2m < 5*0.06m=0.3m → 경고 필요");
 assert.strictEqual(h.needsLGuardConfirm(1.0, 0.06), false, "L=1.0m >= 0.3m → 경고 불필요");

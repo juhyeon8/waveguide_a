@@ -817,13 +817,16 @@
 
     state.captureMode = true;
     var offL = document.createElement("canvas"); offL.width = STAGE_W; offL.height = STAGE_H;
+    var offC = document.createElement("canvas"); offC.width = STAGE_W; offC.height = STAGE_H;
     var offR = document.createElement("canvas"); offR.width = STAGE_W; offR.height = STAGE_H;
     drawStep2Left(offL, state.scale);
+    drawStep2Center(offC, state.scale);
     drawStep2Right(offR, state.scale);
     state.captureMode = false;
     render();   // 화면 캔버스를 정상(텍스트 포함) 상태로 재렌더
 
     saveCanvas(offL, buildFilename(state.lamMM, state.dMM, state.L, state.N, "left", state.phasorStyle, state.scale));
+    saveCanvas(offC, buildFilename(state.lamMM, state.dMM, state.L, state.N, "center", state.phasorStyle, state.scale));
     saveCanvas(offR, buildFilename(state.lamMM, state.dMM, state.L, state.N, "right", state.phasorStyle, state.scale));
   }
 
