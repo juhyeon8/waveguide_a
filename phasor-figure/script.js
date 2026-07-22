@@ -323,6 +323,8 @@
   var LEFT_PAIR_CAP = 20;
   var L_GUARD_LAMBDAS = 5;
   var S0_VIEW = 1.152;
+  var CENTER_PHASOR_SCALE = 3000;  // 중앙 패널 위상자 화살표 배율(px/unit), 고정 — 자동 확대 금지.
+                                    // 논문 조건 A/B/C(L=1.00m) 기준 최대 |v_n|≈0.048 → 화살표 길이≈144px.
   PX_PER_MM = 1.3;   // Task 1에서 3으로 임시 선언했던 것을 재정의 — 검증 3조건 게이트 통과용(아래 주석 참조)
   // PX_PER_MM=1.3 근거: 좌측 밴드 halfBand=(PLOT_BOTTOM-PLOT_TOP)/2=245px. 논문 검증조건 A(d=30mm)에서
   // rankMax=floor(245/(30*PX_PER_MM))가 5 이상이어야 한다. PX_PER_MM=3이면 rankMax=2로 미달, 1.3이면
@@ -584,6 +586,70 @@
   }
 
   // ===================================================================
+  // 10.5 중앙 — 각 도선의 위상자를 도선 세로 배열에 얹음 (2026-07-22 지시서 §9)
+  //      좌측과 같은 도선 y좌표(PLOT_TOP/PLOT_BOTTOM/PX_PER_MM/spacing)를 재사용하고,
+  //      각 점에서 wirePhasors(rot 기준 위상 내장, 우측 나선과 동일 함수)를 화살표로 그린다.
+  //      이 위상자는 도선 자리의 장이 아니라 "P에서 평가한 기여분"이 도선 위치에 얹힌 것이다.
+  // ===================================================================
+  function drawStep2Center(cv, forceScale) {
+    var c = prep(cv, forceScale);
+    var ctx = c.ctx, W = c.W, H = c.H;
+    var captureMode = state.captureMode;
+
+    if (!captureMode) {
+      panelTitle(ctx, W, "각 도선의 산란파가 P에 기여하는 위상자",
+        "화살표를 P에서의 위상·진폭으로, 도선 세로 배열에 얹음 · 방향=위상, 길이=진폭");
+    }
+
+    var plotTop = PLOT_TOP, plotBottom = PLOT_BOTTOM;
+    var cyA = (plotTop + plotBottom) / 2;
+    var wireX = 150;
+    var kk = k(lamM()), d = dM(), Lm = state.L, nMax = state.N;
+    var spacing = state.dMM * PX_PER_MM;
+    var nShownActual = shownPairsFor(state.N, state.dMM);
+    var dotR = Math.min(5, 0.42 * spacing);
+
+    var vecs = wirePhasors(kk, A_WIRE, d, Lm, nMax);
+
+    ctx.save();
+    ctx.lineWidth = 1.5; ctx.lineJoin = "round";
+    for (var n = nShownActual; n >= 0; n--) {
+      if (n === 0) {
+        var v0 = vecs[nMax];
+        arrow(ctx, wireX, cyA, wireX + v0.re * CENTER_PHASOR_SCALE, cyA - v0.im * CENTER_PHASOR_SCALE,
+          wireColor(0, WIRE_PAIRS_SHOWN), 1.5, 6);
+      } else {
+        var yTop = cyA - n * spacing, vTop = vecs[nMax + n];
+        var yBot = cyA + n * spacing, vBot = vecs[nMax - n];
+        var col = wireColor(n, WIRE_PAIRS_SHOWN);
+        arrow(ctx, wireX, yTop, wireX + vTop.re * CENTER_PHASOR_SCALE, yTop - vTop.im * CENTER_PHASOR_SCALE, col, 1.5, 6);
+        arrow(ctx, wireX, yBot, wireX + vBot.re * CENTER_PHASOR_SCALE, yBot - vBot.im * CENTER_PHASOR_SCALE, col, 1.5, 6);
+      }
+    }
+    ctx.restore();
+
+    // 도선 점 — 좌측 패널과 동일 시각 문법(이웃 색 + 가운데 A 굵은 검정)
+    for (var n2 = 1; n2 <= nShownActual; n2++) {
+      ctx.fillStyle = wireColor(n2, WIRE_PAIRS_SHOWN);
+      ctx.beginPath(); ctx.arc(wireX, cyA - n2 * spacing, dotR, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(wireX, cyA + n2 * spacing, dotR, 0, TWO_PI); ctx.fill();
+    }
+    ctx.fillStyle = C_INK;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(wireX, cyA, 7.5, 0, TWO_PI); ctx.stroke();
+
+    if (nShownActual < state.N) {
+      ctx.save();
+      ctx.font = "16px system-ui, sans-serif"; ctx.fillStyle = "#9AA3AB";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("⋮", wireX, plotTop + 8);
+      ctx.fillText("⋮", wireX, plotBottom - 8);
+      ctx.restore();
+    }
+  }
+
+  // ===================================================================
   // 11. 우측 — 위상자 나선 (phasor-steps drawStep2Right 이식)
   //     차이점: (a) 인자로 canvas 엘리먼트·forceScale (b) nMax = CORNU_HALF(3000, 원본 고정값)
   //     대신 state.N — 나선이 정확히 N항까지만 더해진다 (c) captureMode 텍스트 생략,
@@ -697,6 +763,7 @@
 
   function render() {
     drawStep2Left(document.getElementById("canvas2L"));
+    drawStep2Center(document.getElementById("canvas2C"));
     drawStep2Right(document.getElementById("canvas2R"));
     syncLabels();
   }
@@ -775,12 +842,14 @@
       needsLGuardConfirm: needsLGuardConfirm,
       runPaperConditionsGate: runPaperConditionsGate,
       drawStep2Left: drawStep2Left,
+      drawStep2Center: drawStep2Center,
       drawStep2Right: drawStep2Right,
       state: state,
       wirePhasors: wirePhasors,
       cornuPartials: cornuPartials,
       amplitudeSpread: amplitudeSpread,
-      PAPER_CONDITIONS: PAPER_CONDITIONS
+      PAPER_CONDITIONS: PAPER_CONDITIONS,
+      CENTER_PHASOR_SCALE: CENTER_PHASOR_SCALE
     };
   }
 

@@ -174,3 +174,71 @@ texts8.forEach(function (t) {
   assert.ok(String(t).indexOf("수렴점") === -1, "\"수렴점\" 문구가 남아있음: \"" + t + "\"");
 });
 console.log("PASS §8 게이트(수렴점 마커·문구 완전 삭제, open=1/>1·캡처/화면 공통 확인)");
+
+// ==================== §9: 중앙 패널 렌더·정합 게이트 ====================
+function shaftSegments(ctx) {
+  // arrow()가 남기는 moveTo(x1,y1)→lineTo(x2,y2)→stroke() 축(shaft)만 추출.
+  // 화살촉은 stroke 없이 fill만 하므로 자동 제외되고, arc+stroke(도선 점 테두리)는
+  // 직전에 lineTo가 없어 start가 안 잡히므로 자동 제외된다.
+  var segs = [];
+  for (var i = 0; i < ctx.calls.length; i++) {
+    if (ctx.calls[i].name !== "stroke") continue;
+    var end = null, start = null;
+    for (var j = i - 1; j >= 0; j--) {
+      if (ctx.calls[j].name === "lineTo" && end === null) { end = ctx.calls[j].args; continue; }
+      if (ctx.calls[j].name === "moveTo") { start = ctx.calls[j].args; break; }
+      if (ctx.calls[j].name === "beginPath") break;
+    }
+    if (start && end) segs.push({ start: start, end: end });
+  }
+  return segs;
+}
+function approxEq(a, b, eps) { return Math.abs(a - b) < (eps || 1e-6); }
+
+function renderCenterCond(lam, d, L, N, captureMode) {
+  freshState();
+  h.state.lamMM = lam; h.state.dMM = d; h.state.L = L; h.state.N = N;
+  h.state.captureMode = captureMode;
+  var cv = stub.createStubCanvas(620, 640);
+  h.drawStep2Center(cv, 1);
+  return cv._ctx;
+}
+
+// --- 9-5 전반부: wirePhasors 각 항 = 우측 나선의 대응 선분(pts[i+1]-pts[i]) ---
+var kk9 = 2 * Math.PI / 0.06, d9 = 0.015, L9 = 1.00, nMax9 = 5;
+var vecs9 = h.wirePhasors(kk9, 0.0005, d9, L9, nMax9);
+var pts9 = h.cornuPartials(kk9, 0.0005, d9, L9, nMax9);
+for (var i9 = 0; i9 <= 2 * nMax9; i9++) {
+  var segVec = { re: pts9[i9 + 1].re - pts9[i9].re, im: pts9[i9 + 1].im - pts9[i9].im };
+  assert.ok(approxEq(segVec.re, vecs9[i9].re, 1e-9) && approxEq(segVec.im, vecs9[i9].im, 1e-9),
+    "wirePhasors[" + i9 + "] != 나선 선분 pts[" + i9 + "]→pts[" + (i9 + 1) + "]");
+}
+console.log("PASS 게이트 9-5(중앙 위상자 = 우측 나선 선분 정합)");
+// 9-5 후반부(중앙 위상자 합 = s0/나선 끝점 정합)는 게이트 4-2와 동일 기준이며, 중앙 패널이
+// wirePhasors()를 재계산 없이 그대로 재사용하므로 4-2 통과로 이미 충족된다(중복 assert 생략).
+
+// --- 렌더 정합: drawStep2Center의 화살표 Δ가 wirePhasors*CENTER_PHASOR_SCALE과 일치 ---
+var ctxCenter = renderCenterCond(60, 15, 1.00, 5, false);
+var nShownC = h.shownPairsFor(5, 15);
+var segsCenter = shaftSegments(ctxCenter);
+var matched = 0;
+for (var n9 = -nShownC; n9 <= nShownC; n9++) {
+  var v9 = vecs9[n9 + nMax9];
+  var expDx = v9.re * h.CENTER_PHASOR_SCALE, expDy = -v9.im * h.CENTER_PHASOR_SCALE;
+  var found = segsCenter.some(function (s) {
+    var dx = s.end[0] - s.start[0], dy = s.end[1] - s.start[1];
+    return approxEq(dx, expDx, 1e-6) && approxEq(dy, expDy, 1e-6);
+  });
+  assert.ok(found, "중앙 패널에 n=" + n9 + " 위상자 화살표 벡터(Δ=" + expDx.toFixed(3) + "," + expDy.toFixed(3) + ")가 없음");
+  matched++;
+}
+assert.strictEqual(matched, 2 * nShownC + 1, "표시된 도선 수만큼 위상자가 모두 그려져야 함");
+console.log("PASS 중앙 패널 화살표 = wirePhasors × CENTER_PHASOR_SCALE 정합 확인");
+
+// --- captureMode 라벨 제거(좌·우와 동일 규칙) ---
+var centerCap = renderCenterCond(60, 15, 1.00, 5, true);
+var centerNorm = ctxCenter;
+var capTextsC = stub.fillTextCalls(centerCap);
+assert.strictEqual(capTextsC.length, 0, "중앙 패널 captureMode=true에서 fillText 호출이 없어야 함(제목·부제 등 설명 라벨 제거)");
+assert.ok(stub.fillTextCalls(centerNorm).length > 0, "중앙 패널 captureMode=false에서는 제목 등 라벨이 있어야 함(회귀 확인)");
+console.log("PASS 중앙 패널 captureMode 라벨 제거 확인");
