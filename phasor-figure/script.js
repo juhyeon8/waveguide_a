@@ -250,26 +250,6 @@
     return String(Math.round(t * 1000) / 1000);
   }
 
-  function dottedTarget(ctx, W, p, color, label) {
-    ctx.save();
-    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
-    ctx.beginPath(); ctx.arc(p[0], p[1], 9, 0, TWO_PI); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(p[0] - 13, p[1]); ctx.lineTo(p[0] + 13, p[1]);
-    ctx.moveTo(p[0], p[1] - 13); ctx.lineTo(p[0], p[1] + 13);
-    ctx.stroke();
-    if (label) {
-      ctx.font = "bold 16px system-ui, sans-serif";
-      var w = ctx.measureText(label).width;
-      var lx = Math.min(Math.max(p[0], w / 2 + 6), W - w / 2 - 6);
-      backdrop(ctx, lx - w / 2 - 3, p[1] - 32, w + 6, 17);
-      ctx.fillStyle = color; ctx.textBaseline = "bottom"; ctx.textAlign = "center";
-      ctx.fillText(label, lx, p[1] - 16);
-    }
-    ctx.restore();
-  }
-
   function panelTitle(ctx, W, text, sub) {
     ctx.save();
     ctx.font = "bold 17px system-ui, sans-serif";
@@ -607,7 +587,7 @@
   // 11. 우측 — 위상자 나선 (phasor-steps drawStep2Right 이식)
   //     차이점: (a) 인자로 canvas 엘리먼트·forceScale (b) nMax = CORNU_HALF(3000, 원본 고정값)
   //     대신 state.N — 나선이 정확히 N항까지만 더해진다 (c) captureMode 텍스트 생략,
-  //     수렴점 라벨은 dottedTarget에 null을 넘겨 마커만 남긴다.
+  //     수렴점 마커(십자)는 2026-07-22 지시서 §8에 따라 캡처·화면 공통으로 그리지 않는다.
   // ===================================================================
   function drawStep2Right(cv, forceScale) {
     var c = prep(cv, forceScale);
@@ -670,7 +650,6 @@
 
     var pe = map(end);
     arrow(ctx, O[0], O[1], pe[0], pe[1], C_INK, 2.4, 9);
-    dottedTarget(ctx, W, map(target), C_RED, captureMode ? null : (open > 1 ? "수렴점 G∞ (≠ s₀)" : "수렴점 = s₀"));
 
     var ux = 100, uy = 96, unit = 62;
     if (!captureMode) {
@@ -694,7 +673,6 @@
     if (!captureMode) {
       var err = relErr(end, target);
       var rows = [["L =", state.L.toFixed(2) + " m  (" + (state.L / lamM()).toFixed(1) + " λ)", C_BLUE]];
-      if (open > 1) rows.push(["|G∞| =", mag(target).toFixed(4), C_INK]);
       rows.push(["|s₀| =", mag(s0).toFixed(4), C_RED]);
       rows.push(["전파 차수 =", String(open)]);
       rows.push(["나선 오차 =", (err * 100).toFixed(2) + " %"]);
@@ -704,13 +682,13 @@
       if (open > 1) {
         notes(ctx, W, H, [
           s0DefRow,
-          ["전파 차수 " + open + "개 — 수렴점이 s₀ 하나로 안 읽힌다", C_RED],
+          ["전파 차수 " + open + "개 — 회절차수가 여럿이라 해석에 주의", C_RED],
           ["L을 바꾸면 도착점이 움직인다 (층 2 이음매)", "#555"]
         ]);
       } else {
         notes(ctx, W, H, [
           s0DefRow,
-          ["전파 차수 1개 (λ > d) — 수렴점 = s₀", "#555"],
+          ["전파 차수 1개 (λ > d)", "#555"],
           ["L을 바꿔도 도착점은 제자리 (s₀는 L에 무관)", C_BLUE]
         ]);
       }

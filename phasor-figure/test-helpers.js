@@ -147,3 +147,30 @@ h.PAPER_CONDITIONS.forEach(function (c) {
 assert.strictEqual(h.PAPER_CONDITIONS.length, 3, "논문 검증 조건은 3개(A/B/C)여야 함");
 
 console.log("PASS 게이트 4-1(스프레드 계산)/4-5(비정수 d/λ) 확인");
+
+// ==================== §8: 수렴점 마커·문구 삭제 게이트 ====================
+function hasRadius9Arc(ctx) {
+  return stub.hasCall(ctx, "arc", function (a) { return a[2] === 9; });
+}
+function renderRightCond(lam, d, captureMode) {
+  freshState();
+  h.state.lamMM = lam; h.state.dMM = d;
+  h.state.captureMode = captureMode;
+  var cv = stub.createStubCanvas(620, 640);
+  h.drawStep2Right(cv, 1);
+  return cv._ctx;
+}
+
+var texts8 = [];
+[[60, 15], [10, 60]].forEach(function (cond) {  // [lam,d]: 60/15→open=1, 10/60→open>1 두 분기 모두 커버
+  [true, false].forEach(function (cm) {
+    var ctx8 = renderRightCond(cond[0], cond[1], cm);
+    assert.strictEqual(hasRadius9Arc(ctx8), false,
+      "lam=" + cond[0] + " d=" + cond[1] + " captureMode=" + cm + ": 수렴점 십자 마커(반지름9 arc)가 그려지면 안 됨");
+    texts8 = texts8.concat(stub.fillTextCalls(ctx8));
+  });
+});
+texts8.forEach(function (t) {
+  assert.ok(String(t).indexOf("수렴점") === -1, "\"수렴점\" 문구가 남아있음: \"" + t + "\"");
+});
+console.log("PASS §8 게이트(수렴점 마커·문구 완전 삭제, open=1/>1·캡처/화면 공통 확인)");
