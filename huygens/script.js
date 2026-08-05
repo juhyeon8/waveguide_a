@@ -398,33 +398,63 @@
   // 9. 콘솔 자가검증
   //    판정은 verify.js 한 곳에만 있다. 여기서는 실측 env 를 넣어 부르기만 한다.
   // =====================================================================
-  function runVerification() {
+  // 최악 조건 recompute() 를 7회 재고 최소값을 돌려준다 (설계 §9-1 과 같은 방법).
+  // 첫 회는 JIT 예열 전이라 3배까지 느리게 나온다.
+  function measureWorstMs() {
     const saved = {
       tab: activeTab, lam: shared.lam_cm,
       d: tabState[1].d_mm, a: tabState[1].a_mm, N: tabState[1].N,
     };
-    // 항목 10 용 최악 조건 recompute() 실측 — λ=1cm, d=10mm, a=3mm, N=60, Tab 1
-    // 설계 §9-1 의 Node 측정과 방법을 맞춘다: 여러 번 재고 최소값을 쓴다.
-    // 첫 호출은 JIT 예열 전이라 3배까지 느리게 나온다.
     activeTab = 1;
     shared.lam_cm = 1; tabState[1].d_mm = 10; tabState[1].a_mm = 3; tabState[1].N = 60;
-    let worstMs = Infinity;
+    let best = Infinity;
     for (let i = 0; i < 7; i++) {
       recompute();
-      if (solver.lastRecomputeMs < worstMs) worstMs = solver.lastRecomputeMs;
+      if (solver.lastRecomputeMs < best) best = solver.lastRecomputeMs;
     }
     activeTab = saved.tab; shared.lam_cm = saved.lam;
     tabState[1].d_mm = saved.d; tabState[1].a_mm = saved.a; tabState[1].N = saved.N;
+    recompute(); drawFrame();
+    return best;
+  }
 
+  // 백그라운드 탭에서는 Chrome 이 우선순위를 낮춰 같은 코드가 3배까지 느리게 나온다
+  // (실측 201 ms → 553~601 ms, document.visibilityState === "hidden"). 그 값으로
+  // 성능을 판정하지 않는다. 탭이 보이게 되면 항목 0·10 만 다시 측정해 출력한다.
+  function remeasureWhenVisible() {
+    if (!document.hidden) return;
+    console.log("[검증] ⚠ 탭이 백그라운드입니다 — 항목 10 측정이 최대 3배 부풀려집니다. " +
+      "탭을 보이게 하면 자동으로 다시 측정합니다.");
+    document.addEventListener("visibilitychange", function onVis() {
+      if (document.hidden) return;
+      document.removeEventListener("visibilitychange", onVis);
+      console.log("[검증] 탭이 보이게 되었습니다 — 항목 0·10 을 다시 측정합니다.");
+      const out = V.run({
+        label: "브라우저 실측 (탭 표시 상태)",
+        aspect: layout.bandH / layout.bandW,
+        cssW: layout.cssW, cssH: layout.cssH,
+        recomputeMs: measureWorstMs(),
+        hidden: false,
+        perfOnly: true,
+      });
+      out.lines.forEach(function (l) { console.log(l); });
+    });
+  }
+
+  function runVerification() {
+    // 항목 10 용 최악 조건 recompute() 실측 — λ=1cm, d=10mm, a=3mm, N=60, Tab 1
+    const worstMs = measureWorstMs();
     const out = V.run({
       label: "브라우저 실측",
       aspect: layout.bandH / layout.bandW,
       cssW: layout.cssW, cssH: layout.cssH,
       recomputeMs: worstMs,
+      hidden: document.hidden,
       perfOnly: false,
     });
     out.lines.forEach(function (l) { console.log(l); });
     console.log(out.pass ? "[검증] 전 항목 PASS" : "[검증] FAIL 항목 있음");
+    remeasureWhenVisible();
   }
 
   // =====================================================================
@@ -433,8 +463,7 @@
   syncLabels();
   window.addEventListener("resize", resize);
   resize();          // layout 확정 + recompute + drawFrame
-  runVerification(); // 같은 verify.js 를 브라우저에서 실행
-  recompute();       // 검증이 상태를 건드렸을 수 있으므로 복원
+  runVerification(); // 같은 verify.js 를 브라우저에서 실행 (상태는 안에서 복원한다)
   drawFrame();
   requestAnimationFrame(loop);
 })();
