@@ -1,7 +1,8 @@
 // 원본 Faraday/script.js 에서 복사, 원본 무수정.
 // 복사 시점 커밋(Faraday) = 0cf9519  (브랜치 feature/huygens-obstacle 의 생성 시점 HEAD)
 // 설계 문서 = docs/superpowers/specs/2026-08-05-huygens-obstacle-design.md
-// 설계 문서 커밋(바깥 저장소) = 5f5c564
+// 설계 문서 커밋(바깥 저장소) = 5f5c564 → bd0f660  (2026-08-05 Phase 1 실측 반영본)
+//   5f5c564 는 이 파일을 복사할 당시의 기준이라 지우지 않고 병기한다.
 //
 // 두 저장소가 분리되어 있으므로 이 주석이 복사본 ↔ 원본 ↔ 설계 문서를 잇는 유일한
 // 추적 고리다. 원본 script.js 가 나중에 바뀌면 이 해시로 어느 시점의 복사본인지 판별한다.

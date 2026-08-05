@@ -2,6 +2,7 @@
 
 - 작성: 2026-08-05 · Phase 1 (하위헌스 앱) 완료 시점
 - 설계 문서: 바깥 저장소 `docs/superpowers/specs/2026-08-05-huygens-obstacle-design.md`
+  (커밋 `bd0f660` — Phase 1 실측 반영본. 복사 시점 기준은 `5f5c564`)
 - 브랜치: `feature/huygens-obstacle` (기본 브랜치는 `main`)
 - 원본 복사 시점 커밋: `0cf9519`
 
