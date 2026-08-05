@@ -418,6 +418,26 @@ physics.js  ←  verify.js  ←  script.js
                            ↖ floquet-ref.js (정보란의 참고 T 표시용)
 ```
 
+### ⚠ 스크립트 태그 순서 — 좌우 앱이 의도적으로 다르다
+
+| 파일 | 순서 | 이유 |
+|---|---|---|
+| `index.html` (원본) | `script.js` → `bridge.js` | 설계 §2-1 이 "기존 `script.js` 태그 **뒤에**"로 못 박았다. 원본 3파일에 허용된 유일한 변경이므로 **옮길 수 없다** |
+| `huygens/index.html` (신규) | **`bridge.js`** → `floquet-ref.js` → `physics.js` → `verify.js` → `script.js` | 신규 파일이라 제약이 없다. 아래 결함을 피한다 |
+
+**`bridge.js` 가 먼저여야 하는 이유.** `script.js` 의 IIFE 는 로드 즉시 `resize()` 와
+`runVerification()` 을 돈다. `bridge.js` 가 뒤에 있으면 그 시점에 패널이 아직 보여
+좁은 iframe 안에서 `#canvasWrap` 폭이 **0** 이 되고, `bandW = cssW − 24 = −24` 라
+**aspect·Δx·x 좌표가 전부 음수**가 된다. 실측: `캔버스 CSS 0×298`, `aspect −3.4667`,
+`Δx −0.2596 mm`, `최근접 열 x −0.07 mm` → **자가검증 항목 2 가 FAIL** 한다.
+
+**원본도 같은 결함을 갖지만 증상이 없다.** 첫 `resize()` 가 폭 0 을 읽는 것은 동일하다.
+다만 원본의 콘솔 검증(J₀·Y₀·T)이 캔버스 기하와 무관해 드러나지 않고, 화면은 `bridge.js`
+가 쏘는 `resize` 이벤트로 곧바로 복구된다. 그래서 원본은 고치지 않는다.
+
+**단독 로드 동작은 어느 쪽도 바뀌지 않는다** — `bridge.js` 는 최상위 프레임이면
+`if (window.top === window) return;` 로 즉시 반환한다.
+
 **설계 §3은 `huygens/`를 4개 파일로 적었으나 5개로 만들었다.** §10-3(Node 테스트)과
 충돌했기 때문이며, 사용자가 파일 수 쪽을 고치기로 결정했다. 경계는 **"순수 물리만"** 한 번에
 긋는다 — 렌더까지 나누면 원본 `script.js`와의 구조 대칭이 깨진다.

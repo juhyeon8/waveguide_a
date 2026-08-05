@@ -117,10 +117,15 @@
     </div>
   </div>
 </div>
+<!-- bridge.js 가 **맨 앞**이다. iframe(?embed=1)에서 bridge.js 가 패널을 먼저 숨겨야
+     script.js 의 첫 resize() 가 올바른 캔버스 폭을 읽는다. 뒤에 두면 그 시점에
+     #canvasWrap 폭이 0 이라 aspect 와 Δx 가 음수가 되고, 자가검증 항목 2 가 FAIL 한다.
+     최상위 프레임에서는 bridge.js 가 즉시 반환하므로 단독 로드 동작은 바뀌지 않는다.
+     원본 index.html 은 순서가 반대다 (설계 §2-1 이 script.js 뒤로 못 박음) — §3 참고. -->
+<script src="../bridge.js" data-app="huygens"></script>
 <script src="../shared/floquet-ref.js"></script>
 <script src="physics.js"></script>
 <script src="verify.js"></script>
 <script src="script.js"></script>
-<script src="../bridge.js" data-app="huygens"></script>
 </body>
 </html>
