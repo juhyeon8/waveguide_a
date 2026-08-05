@@ -13,10 +13,10 @@
   "use strict";
 
   // 브라우저 창이 없을 때(Node) 쓸 기본 기하.
-  // 설계 §9-1 실측 창(gridW=360 → gridH=113, gridW=240 → gridH=75)을 그대로 재현한다.
+  // 설계 §9-1 기준 기하(gridW=360 → gridH=113, gridW=240 → gridH=75)를 그대로 쓴다.
   const NODE_DEFAULT_ENV = {
     label: "Node 기본 기하 (설계 §9-1 실측 창 재현)",
-    aspect: 113 / 360,
+    aspect: P.DESIGN_ASPECT,
     cssW: null, cssH: null,
     recomputeMs: null,
   };
@@ -266,7 +266,8 @@
       }
       const relD = mx401 > 0 ? dd / mx401 : 0;
       if (relD > worstDouble) worstDouble = relD;
-      notes.push(c[0] + " 영역 rel=" + fmt(relR) + " 배증(401↔801) rel=" + fmt(relD) +
+      notes.push(c[0] + " 영역 rel=" + fmt(relR) + " 배증(" + P.VERIFY_N_ODD + "↔" +
+        (2 * P.VERIFY_N_ODD - 1) + ") rel=" + fmt(relD) +
         " nS=" + nS);
     });
 
@@ -327,9 +328,12 @@
 
   // ── 항목 7. §11 참고 수치표 T_하위헌스 8조건 ────────────────────────
   // [λ cm, d mm, a mm, 기대 T %]
+  // 기대값은 설계 §11 표를 소수 둘째 자리로 적은 것이다 (2026-08-06).
+  // 한 자리로 적으면 편차가 실제 오차가 아니라 표의 반올림에서 생긴다 —
+  // 44.4 % 로 적으면 정확값 44.4444 % 와의 차이 0.0444 %p 가 기준 0.05 %p 를 거의 다 먹는다.
   const TABLE11 = [
-    [12.2, 10, 0.5, 81.0], [25, 10, 0.5, 81.0], [5, 10, 0.5, 81.0], [2, 10, 0.5, 81.0],
-    [12.2, 10, 3, 16.0], [12.2, 30, 1, 87.1], [1, 30, 1, 88.6], [12.2, 3, 0.5, 44.4],
+    [12.2, 10, 0.5, 81.00], [25, 10, 0.5, 81.00], [5, 10, 0.5, 81.00], [2, 10, 0.5, 81.00],
+    [12.2, 10, 3, 16.00], [12.2, 30, 1, 87.11], [1, 30, 1, 88.56], [12.2, 3, 0.5, 44.44],
   ];
   function check7() {
     let worst = 0, worstLabel = "";
@@ -391,7 +395,10 @@
   //
   // 반드시 조건마다 프로세스를 격리해 부를 것 (설계 §9-4). 한 프로세스에서 여러 조건을
   // 연달아 재면 V8 최적화 해제로 같은 코드가 3배까지 느려진다 (실측 328 → 1206 ms).
-  function benchReport(aspect) {
+  // 최악 조건(λ=1cm, d=10mm, a=3mm, N=60, Tab 1)의 물리 계산 소요시간.
+  // 항목 10 의 판정은 이것을 P.DESIGN_ASPECT 로 불러서 쓴다 — 창에서 읽은 aspect 로
+  // 판정하면 판정이 창 종횡비에 좌우되기 때문이다 (physics.js 의 DESIGN_ASPECT 주석).
+  function benchMs(aspect) {
     const g = P.gridGeom(P.GRID_W_FINITE, aspect);
     const k = P.TWO_PI / 0.01;
     const a_m = P.aEffMm(3, 10) / 1000;
@@ -407,10 +414,15 @@
       const e = Date.now() - t0;
       if (e < ms) ms = e;
     }
+    return { ms: ms, gridW: g.gridW, gridH: g.gridH, nS: nS };
+  }
+
+  function benchReport(aspect) {
+    const r = benchMs(aspect);
     return [
       "[벤치] Node 물리 벤치마크 — 최악 조건 λ=1cm d=10mm a=3mm N=60, Tab 1",
-      "[벤치] gridW=" + g.gridW + " gridH=" + g.gridH + " nS=" + nS +
-        "  ·  7회 중 최소 " + ms + " ms  (예산 300 ms)",
+      "[벤치] gridW=" + r.gridW + " gridH=" + r.gridH + " nS=" + r.nS +
+        "  ·  7회 중 최소 " + r.ms + " ms  (예산 300 ms)",
       "[벤치] 항목 10(브라우저 recompute 실측)과 다른 값이다. 판정하지 않는다.",
     ];
   }
@@ -536,7 +548,8 @@
   }
 
   return {
-    run: run, convergeReport: convergeReport, benchReport: benchReport,
+    run: run, convergeReport: convergeReport,
+    benchMs: benchMs, benchReport: benchReport,
     NODE_DEFAULT_ENV: NODE_DEFAULT_ENV,
   };
 });

@@ -23,15 +23,22 @@
   const HUYGENS_SIGN = -1;
   const HUYGENS_M = 200;      // 해석급수 모드 수 (원본 FLOQUET_M=50 과 분리)
   const GRID_W_INF = 360;     // Tab 0 격자 폭
-  const GRID_W_FINITE = 240;  // Tab 1 격자 폭 (설계 §9-3 절차로 확정)
+  const GRID_W_FINITE = 200;  // Tab 1 격자 폭 (설계 §9-3 절차로 확정 — 240 은 기준 기하에서 예산 초과)
   const USE_Y_SYMMETRY = true;
   const WIRE_DRAW_EXAGGERATION = 5;
-  const VERIFY_N_ODD = 401;   // 검증 전용 배열 크기 — 반드시 홀수
+  const VERIFY_N_ODD = 801;   // 검증 전용 배열 크기 — 반드시 홀수. 401 은 여유 부족(§15-14)
   // 열별 소멸파 조기종료 임계. HUYGENS_M 보다 먼저 급수를 자르면 안 된다.
   // 1e-7 이면 최근접 열에서 λ=12.2cm·d=10mm 는 m=28, λ=1cm·d=60mm 는 m=166 에서
   // 잘려 M=200 에 닿지도 못하고, 실오차가 §9-1 표(1e-10 수준)보다 3~10⁴배 커진다.
   // 1e-10 이면 절단이 각각 m=42 / 249 로 밀려 M 이 다시 구속 조건이 된다.
   const EVANESCENT_EPS = 1e-10;
+
+  // 성능 판정 전용 기준 기하 (설계 §9-1). aspect = bandH/bandW.
+  // gridW=360 → gridH=113, gridW=240 → gridH=75 가 되는 값이다.
+  // 항목 10 을 창에서 읽은 aspect 로 판정하면 판정이 창 종횡비에 좌우된다 —
+  // 넓은 창(aspect 0.167)은 gridH 가 40 까지 내려가 셀 수가 절반이라 통과하지만,
+  // 같은 코드가 세로로 긴 창에서는 예산을 넘는다. 판정은 이 기하로 고정한다.
+  const DESIGN_ASPECT = 113 / 360;
 
   // 원본 앱과 동일해야 하는 값
   const A_RATIO_MAX = 0.30;
@@ -373,6 +380,7 @@
     USE_Y_SYMMETRY: USE_Y_SYMMETRY,
     WIRE_DRAW_EXAGGERATION: WIRE_DRAW_EXAGGERATION,
     VERIFY_N_ODD: VERIFY_N_ODD, EVANESCENT_EPS: EVANESCENT_EPS,
+    DESIGN_ASPECT: DESIGN_ASPECT,
     A_RATIO_MAX: A_RATIO_MAX, FLOQUET_YW: FLOQUET_YW, N_MAX_INF: N_MAX_INF,
     T_MEAS_X: T_MEAS_X, T_MEAS_YHALF: T_MEAS_YHALF,
     T_MEAS_SAMPLES: T_MEAS_SAMPLES, T_NS_FIXED: T_NS_FIXED,

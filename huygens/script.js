@@ -416,21 +416,28 @@
         " Δ'=" + (2 * a_m * 1000 / nS).toFixed(4) + "mm";
     }
     console.log("[검증] 0. 환경 기록 … PASS\n" +
-      "        캔버스 CSS " + layout.cssW.toFixed(0) + "×" + layout.cssH.toFixed(0) + " px\n" +
+      "        캔버스 CSS " + layout.cssW.toFixed(0) + "×" + layout.cssH.toFixed(0) + " px" +
+      "  ·  aspect = bandH/bandW = " + aspect.toFixed(4) +
+      "  (판정 기준 기하 " + P.DESIGN_ASPECT.toFixed(4) + ")\n" +
       line("Tab0", g0) + "\n" + line("Tab1", g1));
   }
 
-  // ── 항목 10. 최악 조건 recompute() 소요시간 < 300 ms ────────────────
-  function logPerfRecord(ms) {
+  // ── 항목 10. 최악 조건 소요시간 < 300 ms ───────────────────────────
+  // 판정은 창에서 읽은 aspect 가 아니라 설계 기준 기하(P.DESIGN_ASPECT, gridH=75)로
+  // 한다. 창 종횡비로 판정하면 넓은 창(gridH=40)에서는 셀 수가 절반이라 통과하지만
+  // 같은 코드가 세로로 긴 창에서는 예산을 넘는다 — 항목 4에서 x 범위와 nS 를 창과
+  // 무관하게 만든 것과 같은 이유다. 실제 창 기하의 recompute() 값은 기록으로 남긴다.
+  function logPerfRecord(actual) {
     const judge = !document.hidden;
-    const src = judge
-      ? "브라우저 recompute() 실측 (탭 표시 상태)"
-      : "브라우저 recompute() — 탭이 백그라운드라 [기록·판정 아님]. " +
-        "탭을 보이게 하면 다시 측정한다";
-    const verdict = judge ? (ms < 300 ? "PASS" : "FAIL") : "PASS";
+    const b = V.benchMs(P.DESIGN_ASPECT);
+    const verdict = judge ? (b.ms < 300 ? "PASS" : "FAIL") : "PASS";
     console.log("[검증] 10. 최악 조건 소요시간 (λ=1cm d=10mm a=3mm N=60) … " + verdict +
-      "\n        " + Math.round(ms) + " ms · " + src + " (기준 <300 ms)");
-    return !judge || ms < 300;
+      "\n        판정 " + b.ms + " ms · 기준 기하 gridW=" + b.gridW + " gridH=" + b.gridH +
+      " nS=" + b.nS + " (기준 <300 ms)" +
+      (judge ? "" : " ← 탭이 백그라운드라 [기록·판정 아님]. 탭을 보이게 하면 다시 측정한다") +
+      "\n        [기록] 실제 창 기하의 recompute() " + Math.round(actual.ms) + " ms" +
+      " (gridW=" + actual.gridW + " gridH=" + actual.gridH + ")");
+    return !judge || b.ms < 300;
   }
 
   // 최악 조건 recompute() 를 7회 재고 최소값을 돌려준다 (설계 §9-1 과 같은 방법).
@@ -447,10 +454,12 @@
       recompute();
       if (solver.lastRecomputeMs < best) best = solver.lastRecomputeMs;
     }
+    // 최악 조건일 때의 격자 크기를 잡아 둔다 — 아래에서 상태를 되돌리면 달라진다.
+    const out = { ms: best, gridW: solver.gridW, gridH: solver.gridH };
     activeTab = saved.tab; shared.lam_cm = saved.lam;
     tabState[1].d_mm = saved.d; tabState[1].a_mm = saved.a; tabState[1].N = saved.N;
     recompute(); drawFrame();
-    return best;
+    return out;
   }
 
   // 백그라운드 탭에서는 Chrome 이 우선순위를 낮춰 같은 코드가 3배까지 느리게 나온다
@@ -472,14 +481,14 @@
   function runVerification() {
     // 측정을 먼저 한다. 항목 1~9 를 먼저 돌린 뒤 재면 V8 최적화 해제로 3배까지
     // 부풀려진다 (설계 §9-4). 출력 순서는 0 → 1~9 → 10 으로 맞춘다.
-    const worstMs = measureWorstMs();
+    const worst = measureWorstMs();
     logEnvRecord();                               // 항목 0
     const out = V.run({                           // 항목 1~9
       label: "브라우저 실측",
       aspect: layout.bandH / layout.bandW,
     });
     out.lines.forEach(function (l) { console.log(l); });
-    const perfOk = logPerfRecord(worstMs);        // 항목 10
+    const perfOk = logPerfRecord(worst);          // 항목 10
     console.log((out.pass && perfOk) ? "[검증] 전 항목 PASS" : "[검증] FAIL 항목 있음");
     remeasureWhenVisible();
   }
