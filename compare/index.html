@@ -7,18 +7,60 @@
 </head>
 <body>
 
-<!-- Phase 2-0 (배선 확인) 골격입니다.
-     마스터 컨트롤은 λ 하나만 배선했고, 하단 정량 패널·T(λ) 곡선·CSV 는 아직 없습니다. -->
+<!-- Phase 2-1 (마스터 컨트롤바 전체 배선) 까지 구현되어 있습니다.
+     하단 정량 패널·T(λ) 곡선·CSV 는 아직 없습니다 (2-2 ~ 2-4). -->
 
 <div id="bar">
   <h1>실제 격자 모형 ↔ 하위헌스-장애물 모형</h1>
-  <div class="row">
-    <label for="mLam">파장 λ</label>
-    <input type="range" id="mLam" min="1" max="30" step="0.1" value="12.2">
-    <span class="valbox" id="mLamVal">—</span>
+
+  <!-- 탭은 마스터가 단일 소유한다. iframe 쪽 탭 버튼은 패널이 숨겨져 있어 누를 수 없다. -->
+  <div id="tabBar">
+    <button class="tabBtn active" data-tab="0">무한 배열</button>
+    <button class="tabBtn" data-tab="1">유한 배열</button>
   </div>
+
+  <div class="grid">
+    <div class="row">
+      <label for="mA">반지름 a</label>
+      <input type="range" id="mA" min="0.05" max="3" step="0.05" value="0.5">
+      <span class="valbox" id="mAVal">—</span>
+    </div>
+    <div class="row">
+      <label for="mD">간격 d</label>
+      <input type="range" id="mD" min="3" max="60" step="0.5" value="10">
+      <span class="valbox" id="mDVal">—</span>
+    </div>
+    <div class="row" id="rowN">
+      <label for="mN">개수 N</label>
+      <input type="range" id="mN" min="2" max="60" step="1" value="30">
+      <span class="valbox" id="mNVal">—</span>
+    </div>
+    <div class="row">
+      <label for="mLam">파장 λ</label>
+      <input type="range" id="mLam" min="1" max="30" step="0.1" value="12.2">
+      <span class="valbox" id="mLamVal">—</span>
+    </div>
+    <div class="row">
+      <label for="mAmp">진폭 A</label>
+      <input type="range" id="mAmp" min="0" max="2" step="0.05" value="1">
+      <span class="valbox" id="mAmpVal">—</span>
+    </div>
+    <div class="row">
+      <label>애니메이션</label>
+      <button class="std" id="mPlay">‖ 일시정지</button>
+      <span class="valbox"></span>
+    </div>
+    <div class="row" id="rowPhase">
+      <label for="mPhase">위상</label>
+      <input type="range" id="mPhase" min="0" max="360" step="1" value="0">
+      <span class="valbox" id="mPhaseVal">0°</span>
+    </div>
+  </div>
+
   <div class="note">비교는 <b>E∥ 조건</b>에서만 정의됩니다. 하위헌스-장애물 모형에는 편광
     개념이 없어 E⊥ 에서는 대응이 성립하지 않습니다.</div>
+  <div class="note" id="autoNNote">무한 배열 탭에서 도선 수 N 은 자동이며 표시 전용입니다.</div>
+  <div id="tabWarn" class="warn" hidden></div>
 </div>
 
 <div id="split">
@@ -34,7 +76,7 @@
   </figure>
 </div>
 
-<!-- 배선 진단줄. Phase 2-0 확인용이며 설계 §8-3 의 하단 정량 패널이 아닙니다. -->
+<!-- 배선 진단줄. Phase 2-0/2-1 확인용이며 설계 §8-3 의 하단 정량 패널이 아닙니다. -->
 <div id="probe" class="note">배선 확인 대기 중…</div>
 
 <script src="script.js"></script>
