@@ -57,25 +57,56 @@
     };
   }
 
-  // ── 항목 2. a → 0 이면 차이장이 전 격자에서 0 ──────────────────────
+  // ── 항목 2. a → 0 이면 차이장이 0 ──────────────────────────────────
   // a = 0 을 그대로 쓰면 자명하게 통과한다 — Tab 0 은 t_m = δ_{m0} 이라 급수가 통째로
   // 사라지고, Tab 1 은 적분 폭이 0 이라 조기 반환된다. 즉 적분 경로가 한 번도 안 돈다.
-  // a = 0.001 mm 로 두어 두 경로가 실제로 돌게 한 뒤 판정한다. 기준은 그대로 1e-3·A.
+  // a = 0.001 mm 로 두어 두 경로가 실제로 돌게 한다.
+  //
+  // 판정 영역은 Δx < x ≤ 30 mm (최근접 열을 뺀 측정면까지)다.
+  // 최근접 열 x = Δx/2 는 창 크기에 따라 도선 평면에 얼마나 가까워지는지가 달라져
+  // (실측 aspect 0.167/0.314/0.440 → 1.50/0.80/0.57 mm) 소멸파 합이 그만큼 커진다.
+  // 그 열로 판정하면 판정 정밀도가 창 크기에 좌우된다 — §10-1 4번에서 x 범위와 nS 를
+  // 창과 무관하게 만든 것과 같은 이유다. x ≤ 30 mm 상한만으로는 부족하다: 최댓값이
+  // 언제나 최근접 열에서 나오므로 상한을 걸어도 값이 바뀌지 않는다.
+  //
+  // 다만 여기서 잘라내는 것은 오차가 아니라 물리다. a = 0.001 mm 에서도 도선 평면
+  // 바로 뒤에는 소멸파에 의한 국소 교란이 실제로 존재한다. 판정에서 뺄 뿐 사라지게
+  // 하지 않는다 — 최근접 열을 포함한 편차를 [기록]으로 함께 출력한다.
   const A_TINY_MM = 0.001;
   function check2(env) {
-    const s0 = setup(env, P.GRID_W_INF, 12.2, 10, A_TINY_MM, 30);
-    const A = P.analyticDiffGrid(s0.g, s0.k, s0.d_m, s0.a_m);
-    const s1 = setup(env, P.GRID_W_FINITE, 12.2, 10, A_TINY_MM, 30);
-    const R = P.rsDiffGrid(s1.g, s1.k, s1.wiresY, s1.a_m, s1.nS, P.USE_Y_SYMMETRY);
-    let wa = 0, wr = 0;
-    for (let i = 0; i < A.re.length; i++) wa = Math.max(wa, Math.hypot(A.re[i], A.im[i]));
-    for (let i = 0; i < R.re.length; i++) wr = Math.max(wr, Math.hypot(R.re[i], R.im[i]));
-    const worst = Math.max(wa, wr);
+    const out = [];
+    let worstJudged = 0, worstAll = 0;
+
+    [["Tab0 해석급수", P.GRID_W_INF], ["Tab1 RS적분", P.GRID_W_FINITE]].forEach(function (t) {
+      const s = setup(env, t[1], 12.2, 10, A_TINY_MM, 30);
+      const F = (t[1] === P.GRID_W_INF)
+        ? P.analyticDiffGrid(s.g, s.k, s.d_m, s.a_m)
+        : P.rsDiffGrid(s.g, s.k, s.wiresY, s.a_m, s.nS, P.USE_Y_SYMMETRY);
+      let judged = 0, all = 0;
+      for (let gj = 0; gj < s.g.gridH; gj++) {
+        for (let gi = 0; gi < s.g.gridW; gi++) {
+          const wx = P.cellX(gi, s.g);
+          if (wx <= 0 || wx > P.T_MEAS_X) continue;
+          const v = Math.hypot(F.re[gj * s.g.gridW + gi], F.im[gj * s.g.gridW + gi]);
+          if (v > all) all = v;
+          if (wx > s.g.dx_m && v > judged) judged = v;   // 최근접 열 제외
+        }
+      }
+      if (judged > worstJudged) worstJudged = judged;
+      if (all > worstAll) worstAll = all;
+      out.push(t[0] + " 판정 " + fmt(judged) + " · 최근접 열(x=" +
+        (s.g.dx_m / 2 * 1000).toFixed(2) + "mm) 포함 " + fmt(all));
+    });
+
     return {
       no: 2, name: "a→0 (a=" + A_TINY_MM + "mm) → |③−①| ≈ 0",
-      pass: worst < 1e-3,
-      detail: "해석급수 " + fmt(wa) + " / RS적분 " + fmt(wr) +
-        " (기준 <1e-3·A · 적분 경로가 실제로 도는 조건)",
+      pass: worstJudged < 1e-3,
+      detail: "판정 " + fmt(worstJudged) + " (기준 <1e-3·A)\n" +
+        "        판정 영역 Δx < x ≤ " + (P.T_MEAS_X * 1000).toFixed(0) +
+        "mm(최근접 열을 뺀 측정면까지) · 적분 경로가 실제로 도는 조건\n        " +
+        out.join("\n        ") +
+        "\n        [기록·판정 아님] 최근접 열까지 포함하면 " + fmt(worstAll) + ".\n" +
+        "        이는 구현 오차가 아니라 도선 평면 바로 뒤 소멸파의 실재를 반영한 값이다.",
     };
   }
 
@@ -443,9 +474,51 @@
     return lines;
   }
 
-  // 설계 §10-1 의 1~9 번. 항목 0·10 은 브라우저 전용이라 script.js 에 있다.
+  // ── 항목 11. 스크래치 인자의 참조 투명성 ───────────────────────────
+  // physics.js 는 모듈 전역 상태를 두지 않는 것이 원칙이고, rsDiffAt 의 scratch 인자가
+  // 유일한 예외다 (설계 §3-1). "호출자 소유라 순수하다"는 주장의 근거를 여기서 만든다.
+  function check11(env) {
+    const s = setup(env, P.GRID_W_FINITE, 12.2, 10, 0.5, 30);
+    const pts = [];
+    for (let i = 1; i <= 12; i++) {
+      pts.push([s.g.dx_m * i * 0.7, s.g.dy_m * (i - 6) * 1.3]);
+    }
+
+    // (a) 스크래치 유무가 결과를 바꾸지 않는가
+    let mismatchA = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = P.rsDiffAt(pts[i][0], pts[i][1], s.k, s.wiresY, s.a_m, s.nS);
+      const b = P.rsDiffAt(pts[i][0], pts[i][1], s.k, s.wiresY, s.a_m, s.nS,
+        new Float64Array(2));
+      if (a.re !== b.re || a.im !== b.im) mismatchA++;
+    }
+
+    // (b) 같은 스크래치를 재사용해도 첫 호출과 같은가 (잔여 상태 누출 검사)
+    // 사이사이에 다른 조건으로 호출해 스크래치를 일부러 더럽힌다.
+    const shared = new Float64Array(2);
+    let mismatchB = 0;
+    const first = [];
+    for (let i = 0; i < pts.length; i++) {
+      first.push(P.rsDiffAt(pts[i][0], pts[i][1], s.k, s.wiresY, s.a_m, s.nS, shared));
+    }
+    for (let i = 0; i < pts.length; i++) {
+      P.rsDiffAt(0.030, 0.001 * i, s.k, s.wiresY, s.a_m, 64, shared);   // 더럽히기
+      const again = P.rsDiffAt(pts[i][0], pts[i][1], s.k, s.wiresY, s.a_m, s.nS, shared);
+      if (again.re !== first[i].re || again.im !== first[i].im) mismatchB++;
+    }
+
+    return {
+      no: 11, name: "스크래치 인자의 참조 투명성 (설계 §3-1 예외)",
+      pass: mismatchA === 0 && mismatchB === 0,
+      detail: "스크래치 유무 비트 동일: " + (pts.length - mismatchA) + "/" + pts.length +
+        " · 스크래치 재사용 후에도 첫 호출과 동일: " + (pts.length - mismatchB) + "/" +
+        pts.length + " (둘 다 전부 일치해야 함)",
+    };
+  }
+
+  // 설계 §10-1 의 1~9·11 번. 항목 0·10 은 브라우저 전용이라 script.js 에 있다.
   const CHECKS = [check1, check2, check3, check4, check5,
-                  check6, check7, check8, check9];
+                  check6, check7, check8, check9, check11];
 
   function run(env) {
     const e = env || NODE_DEFAULT_ENV;
