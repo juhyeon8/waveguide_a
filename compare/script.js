@@ -90,9 +90,71 @@
     });
   }
 
-  function apply() { syncLabels(); broadcast(); }
+  // ── 하단 정량 패널 (설계 §8-3) ──────────────────────────────────────
+  // iframe 통신에 의존하지 않고 직접 계산한다 (§8-2). 그래서 동기화가 실패해도
+  // 정량 결과는 살아남는다.
+  //   T_inf_grid      ← shared/floquet-ref.js
+  //   T_fin_grid      ← shared/mom-ref.js   (원본 script.js 의 MoM 복사본, §6-2)
+  //   T_inf/fin_huygens ← huygens/physics.js
+  const REF = window.FloquetRef;
+  const MOM = window.MomRef;
+  const HP = window.HuygensPhysics;
+
+  function pct(x) { return (x * 100).toFixed(1) + " %"; }
+  function ratio(a, b) { return b > 0 ? (a / b).toFixed(2) + " 배" : "—"; }
+
+  function updateQuant() {
+    const ts = tabState[activeTab];
+    const lam = shared.lam_cm, d = ts.d_mm, a = ts.a_mm;
+
+    // [A] 무한 주기 격자 — 탭과 무관하게 항상 표시
+    const ag = REF.T_inf_grid(lam, d, a).T;
+    const ah = HP.T_inf_huygens(lam, d, a).T;
+    $("aGrid").textContent = pct(ag);
+    $("aHuy").textContent = pct(ah);
+    $("aRatio").textContent = ratio(ah, ag);
+
+    // [B] 유한 배열 — 유한 배열 탭일 때만. 마스터 N 을 쓴다.
+    const showB = activeTab === 1;
+    $("blockB").hidden = !showB;
+    $("blockBHidden").hidden = showB;
+    if (!showB) return;
+
+    const N = ts.N;
+    const bg = MOM.T_fin_grid(lam, d, a, N);
+    const bh = HP.T_fin_huygens(lam, d, a, N);
+    $("bGrid").textContent = pct(bg);
+    $("bHuy").textContent = pct(bh);
+    $("bRatio").textContent = ratio(bh, bg);
+    // 게이트 7 — λ > d 구간에서 T_fin_huygens 가 T_inf_huygens 와 10 %p 이내여야 한다.
+    // 판정값만 남기지 않고 실제 편차도 함께 기록한다.
+    const dev = Math.abs(bh - ah) * 100;
+    const lamGtD = (lam / 10) > (d / 10);
+    $("bNote").textContent =
+      "N = " + N + " · 도선당 적분 표본 " + HP.T_NS_FIXED + " 고정 (화면 렌더와 별개)" +
+      (lamGtD ? " · [기록] |T_유한 − T_무한|(하위헌스) = " + dev.toFixed(2) + " %p" : "");
+  }
+
+  function apply() { syncLabels(); broadcast(); updateQuant(); }
 
   // ── UI 바인딩 ───────────────────────────────────────────────────────
+  // 전환 중 표시. 탭 전환은 좌우 앱의 recompute()+drawFrame() 을 동기로 돌리는데,
+  // 동일 출처 iframe 이 부모와 메인 스레드를 공유하므로 그 동안 화면 전체가 멈춘다
+  // (실측 983~2245 ms, 백그라운드 3배 포함). 아무 표시가 없으면 고장으로 보인다.
+  function setTabBusy(on) {
+    document.querySelectorAll(".tabBtn").forEach(function (b) { b.disabled = on; });
+    $("tabBusy").hidden = !on;
+  }
+
+  // 표시가 실제로 그려지도록 페인트를 한 번 양보한 뒤 계산에 들어간다.
+  // rAF 는 백그라운드 탭에서 멈추므로 setTimeout 대비를 함께 건다 (둘 중 먼저 오는 것).
+  function yieldToPaint(fn) {
+    let done = false;
+    function run() { if (done) return; done = true; fn(); }
+    requestAnimationFrame(function () { requestAnimationFrame(run); });
+    setTimeout(run, 250);
+  }
+
   document.querySelectorAll(".tabBtn").forEach(function (btn) {
     btn.addEventListener("click", function () {
       const t = parseInt(this.dataset.tab, 10);
@@ -107,7 +169,13 @@
       $("mA").value = String(ts.a_mm);
       $("mD").value = String(ts.d_mm);
       $("mN").value = String(ts.N || 30);
-      apply();
+      syncLabels();
+      setTabBusy(true);
+      yieldToPaint(function () {
+        broadcast();
+        updateQuant();
+        setTabBusy(false);
+      });
     });
   });
 

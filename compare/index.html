@@ -17,6 +17,9 @@
   <div id="tabBar">
     <button class="tabBtn active" data-tab="0">무한 배열</button>
     <button class="tabBtn" data-tab="1">유한 배열</button>
+    <!-- 전환 중 표시. 좌우 앱의 recompute() 가 메인 스레드를 점유하는 동안
+         화면이 멈춘 것처럼 보이지 않게 한다. -->
+    <span id="tabBusy" class="busy" hidden>전환 중… 양쪽 모형을 다시 계산합니다</span>
   </div>
 
   <div class="grid">
@@ -76,9 +79,40 @@
   </figure>
 </div>
 
-<!-- 배선 진단줄. Phase 2-0/2-1 확인용이며 설계 §8-3 의 하단 정량 패널이 아닙니다. -->
+<!-- 하단 정량 패널 (설계 §8-3). iframe 통신에 의존하지 않고 직접 계산합니다 (§8-2). -->
+<div id="quant">
+  <section class="block" id="blockA">
+    <h2>[A] 무한 주기 격자 <span class="def">정의: 전파 회절차수 전력합
+      <code>T = Σ(κ_m/k)|t_m|²</code></span></h2>
+    <div class="vals">
+      <div class="v"><span class="k">T 실제 (Floquet)</span><b id="aGrid">—</b></div>
+      <div class="v"><span class="k">T 하위헌스</span><b id="aHuy">—</b></div>
+      <div class="v"><span class="k">비율 하위헌스 / 실제</span><b id="aRatio">—</b></div>
+    </div>
+  </section>
+
+  <p class="caution">두 값은 정의가 다르므로 직접 비교하지 마십시오</p>
+
+  <section class="block" id="blockB">
+    <h2>[B] 유한 배열 <span class="def">정의: <code>x = 30 mm</code>, 측정창 반높이
+      <code>22.5 mm</code>, <code>41</code> 표본 평균 <code>|E|²</code></span></h2>
+    <div class="vals">
+      <div class="v"><span class="k">T 실제 (MoM)</span><b id="bGrid">—</b></div>
+      <div class="v"><span class="k">T 하위헌스 (RS)</span><b id="bHuy">—</b></div>
+      <div class="v"><span class="k">비율 하위헌스 / 실제</span><b id="bRatio">—</b></div>
+    </div>
+    <div class="note" id="bNote"></div>
+  </section>
+  <p class="note" id="blockBHidden" hidden>[B] 유한 배열 블록은 <b>유한 배열 탭</b>에서만
+    표시됩니다.</p>
+</div>
+
+<!-- 배선 진단줄. Phase 2-0/2-1 확인용이며 위 정량 패널이 아닙니다. -->
 <div id="probe" class="note">배선 확인 대기 중…</div>
 
+<script src="../shared/floquet-ref.js"></script>
+<script src="../shared/mom-ref.js"></script>
+<script src="../huygens/physics.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
