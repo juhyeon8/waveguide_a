@@ -75,16 +75,22 @@
 
   // H₁⁽¹⁾(x) = J₁(x) + i·Y₁(x).
   // x ≥ 3 구간에서 f·t·sqrt 를 J₁·Y₁ 이 공유한다 (설계 §4-3 커널).
-  function hankel1(x) {
-    if (x < 3) return { re: besselJ1(x), im: besselY1(x) };
+  //
+  // 결과를 out[0], out[1] 에 쓴다. 객체를 새로 만들지 않는 이유: 최악 조건에서 이 함수가
+  // 190만 번 불리는데, Chrome 은 Node 와 달리 반환 객체를 탈출 분석으로 없애 주지
+  // 못해 그대로 두면 브라우저에서만 3배 넘게 느려진다 (실측 579 ms → 아래 §9-3 보고).
+  function hankel1Into(x, out) {
+    if (x < 3) { out[0] = besselJ1(x); out[1] = besselY1(x); return; }
     const z = 3 / x;
     const f = 0.79788456 + z * (0.00000156 + z * (0.01659667 + z * (0.00017105 +
       z * (-0.00249511 + z * (0.00113653 + z * (-0.00020033))))));
     const t = x - 2.35619449 + z * (0.12499612 + z * (0.00005650 + z * (-0.00637879 +
       z * (0.00074348 + z * (0.00079824 + z * (-0.00029166))))));
     const s = f / Math.sqrt(x);
-    return { re: s * Math.cos(t), im: s * Math.sin(t) };
+    out[0] = s * Math.cos(t); out[1] = s * Math.sin(t);
   }
+  const _h = new Float64Array(2);
+  function hankel1(x) { hankel1Into(x, _h); return { re: _h[0], im: _h[1] }; }
 
   function sinc(u) { return u === 0 ? 1 : Math.sin(u) / u; }
 
@@ -268,11 +274,13 @@
   //   Δre = +(k/2)(x/r)Δ'·H₁ᵢ ,  Δim = −(k/2)(x/r)Δ'·H₁ᵣ
   // 막힌 부분만 적분하는 바비네 뒤집기이므로 a = 0 이면 기여가 정확히 0 이다.
   // (Δ' = 0 이면 r 클램프도 0 이 되어 H₁(0) 이 발산하므로 반드시 먼저 걸러야 한다.)
+  const _hRs = new Float64Array(2);
   function rsDiffAt(wx, wy, k, wiresY, a_m, nS) {
     if (wx <= 0 || a_m <= 0) return { re: 0, im: 0 };
     const dPrime = 2 * a_m / nS;
     const rMin = dPrime / 2;
     const pref = 0.5 * k * dPrime;
+    const h = _hRs;                      // 호출마다 객체를 만들지 않는다 (hankel1Into 주석)
     let sr = 0, si = 0;
     for (let n = 0; n < wiresY.length; n++) {
       const y0 = wiresY[n] - a_m;
@@ -280,10 +288,10 @@
         const dy = wy - (y0 + (s + 0.5) * dPrime);
         let r = Math.sqrt(wx * wx + dy * dy);
         if (r < rMin) r = rMin;          // 특이점 가드
-        const h = hankel1(k * r);
+        hankel1Into(k * r, h);
         const w = pref * (wx / r);
-        sr += w * h.im;
-        si -= w * h.re;
+        sr += w * h[1];
+        si -= w * h[0];
       }
     }
     return { re: sr, im: si };

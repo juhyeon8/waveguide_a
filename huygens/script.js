@@ -404,10 +404,15 @@
       d: tabState[1].d_mm, a: tabState[1].a_mm, N: tabState[1].N,
     };
     // 항목 10 용 최악 조건 recompute() 실측 — λ=1cm, d=10mm, a=3mm, N=60, Tab 1
+    // 설계 §9-1 의 Node 측정과 방법을 맞춘다: 여러 번 재고 최소값을 쓴다.
+    // 첫 호출은 JIT 예열 전이라 3배까지 느리게 나온다.
     activeTab = 1;
     shared.lam_cm = 1; tabState[1].d_mm = 10; tabState[1].a_mm = 3; tabState[1].N = 60;
-    recompute();
-    const worstMs = solver.lastRecomputeMs;
+    let worstMs = Infinity;
+    for (let i = 0; i < 7; i++) {
+      recompute();
+      if (solver.lastRecomputeMs < worstMs) worstMs = solver.lastRecomputeMs;
+    }
     activeTab = saved.tab; shared.lam_cm = saved.lam;
     tabState[1].d_mm = saved.d; tabState[1].a_mm = saved.a; tabState[1].N = saved.N;
 
