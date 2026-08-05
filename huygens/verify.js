@@ -13,7 +13,7 @@
   "use strict";
 
   // 브라우저 창이 없을 때(Node) 쓸 기본 기하.
-  // 설계 §9-1 기준 기하(gridW=360 → gridH=113, gridW=240 → gridH=75)를 그대로 쓴다.
+  // 설계 §9-1 기준 기하(gridW=360 → gridH=113, gridW=200 → gridH=63)를 그대로 쓴다.
   const NODE_DEFAULT_ENV = {
     label: "Node 기본 기하 (설계 §9-1 실측 창 재현)",
     aspect: P.DESIGN_ASPECT,

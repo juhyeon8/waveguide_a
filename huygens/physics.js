@@ -26,6 +26,13 @@
   const GRID_W_FINITE = 200;  // Tab 1 격자 폭 (설계 §9-3 절차로 확정 — 240 은 기준 기하에서 예산 초과)
   const USE_Y_SYMMETRY = true;
   const WIRE_DRAW_EXAGGERATION = 5;
+  // 캔버스에 밴드 제목을 그릴지. false 면 캔버스에 글자가 하나도 남지 않는다.
+  // 두 곳에서 false 로 쓴다:
+  //   (1) §10-2 게이트 2 — ② 칸 x<0 을 예외 없이 편차 0 으로 검사하기 위해.
+  //       글자 상자를 예외로 빼는 방식은 폰트 메트릭에 의존해 판정이 환경에
+  //       좌우된다 (§15-16). 항목 4의 x 범위·nS, 항목 10의 판정 기하와 같은 결함이다.
+  //   (2) 논문 그림 캡처 — 캡션을 패널로 옮긴 것과 같은 이유로 제목도 없는 편이 깔끔하다.
+  const DRAW_BAND_TITLES = true;
   const VERIFY_N_ODD = 801;   // 검증 전용 배열 크기 — 반드시 홀수. 401 은 여유 부족(§15-14)
   // 열별 소멸파 조기종료 임계. HUYGENS_M 보다 먼저 급수를 자르면 안 된다.
   // 1e-7 이면 최근접 열에서 λ=12.2cm·d=10mm 는 m=28, λ=1cm·d=60mm 는 m=166 에서
@@ -34,7 +41,7 @@
   const EVANESCENT_EPS = 1e-10;
 
   // 성능 판정 전용 기준 기하 (설계 §9-1). aspect = bandH/bandW.
-  // gridW=360 → gridH=113, gridW=240 → gridH=75 가 되는 값이다.
+  // gridW=360 → gridH=113, gridW=200(=GRID_W_FINITE) → gridH=63 이 되는 값이다.
   // 항목 10 을 창에서 읽은 aspect 로 판정하면 판정이 창 종횡비에 좌우된다 —
   // 넓은 창(aspect 0.167)은 gridH 가 40 까지 내려가 셀 수가 절반이라 통과하지만,
   // 같은 코드가 세로로 긴 창에서는 예산을 넘는다. 판정은 이 기하로 고정한다.
@@ -379,6 +386,7 @@
     GRID_W_INF: GRID_W_INF, GRID_W_FINITE: GRID_W_FINITE,
     USE_Y_SYMMETRY: USE_Y_SYMMETRY,
     WIRE_DRAW_EXAGGERATION: WIRE_DRAW_EXAGGERATION,
+    DRAW_BAND_TITLES: DRAW_BAND_TITLES,
     VERIFY_N_ODD: VERIFY_N_ODD, EVANESCENT_EPS: EVANESCENT_EPS,
     DESIGN_ASPECT: DESIGN_ASPECT,
     A_RATIO_MAX: A_RATIO_MAX, FLOQUET_YW: FLOQUET_YW, N_MAX_INF: N_MAX_INF,

@@ -50,12 +50,9 @@
     gap: 14, bandX: 0, bandW: 0, bandH: 0, bandY: [0, 0, 0],
   };
 
+  // 캔버스에는 밴드 제목만 그린다. 캡션은 패널 .hint 에 있다 (설계 §5) —
+  // 캔버스에 그리면 논문 그림에 글자가 얹히기 때문이다.
   const BAND_TITLES = ["① 입사파", "② 차이장 (전체 − 입사)", "③ 전체장"];
-  const DIFF_CAPTION =
-    "실제 모형의 '산란파'에 대응하는 자리. 이 모형에서는 장애물이 제거한 " +
-    "하위헌스 자파(子波)들의 합이며, 도선 왼쪽에는 아무것도 없습니다.";
-  const WIRE_CAPTION =
-    "도선 굵기는 표시상 " + P.WIRE_DRAW_EXAGGERATION + "배 과장 (계산은 실제 a)";
 
   // =====================================================================
   // 4. 물리 계산 — 전부 physics.js 에 위임한다
@@ -238,20 +235,12 @@
       ctx.fillText("입사파 진행 →", ax, ay - 8);
     }
 
-    // 밴드 제목 (좌측 하단)
-    ctx.font = "bold 13px sans-serif"; ctx.textAlign = "left";
-    ctx.fillStyle = "#10193a";
-    ctx.fillText(BAND_TITLES[band], bx + 10, by + bh - 10);
-
-    // 밴드 하단 캡션 (제목 위 줄로 쌓는다). 폭이 모자라면 그리지 않는다.
-    const caps = [];
-    if (band === 1) caps.push(DIFF_CAPTION);
-    if (band !== 0) caps.push(WIRE_CAPTION);
-    ctx.font = "10px sans-serif"; ctx.fillStyle = "#6b6b72";
-    for (let ci = 0; ci < caps.length; ci++) {
-      const txt = caps[caps.length - 1 - ci];
-      if (ctx.measureText(txt).width > bw - 20) continue;
-      ctx.fillText(txt, bx + 10, by + bh - 26 - ci * 13);
+    // 밴드 제목 (좌측 하단). 캡션은 여기 그리지 않는다 — 패널 .hint 에 있다.
+    // 상수를 캐시하지 않고 매 프레임 읽는다 — 게이트 2 가 실행 중에 토글하기 때문이다.
+    if (P.DRAW_BAND_TITLES) {
+      ctx.font = "bold 13px sans-serif"; ctx.textAlign = "left";
+      ctx.fillStyle = "#10193a";
+      ctx.fillText(BAND_TITLES[band], bx + 10, by + bh - 10);
     }
   }
 
@@ -423,7 +412,7 @@
   }
 
   // ── 항목 10. 최악 조건 소요시간 < 300 ms ───────────────────────────
-  // 판정은 창에서 읽은 aspect 가 아니라 설계 기준 기하(P.DESIGN_ASPECT, gridH=75)로
+  // 판정은 창에서 읽은 aspect 가 아니라 설계 기준 기하(P.DESIGN_ASPECT, gridH=63)로
   // 한다. 창 종횡비로 판정하면 넓은 창(gridH=40)에서는 셀 수가 절반이라 통과하지만
   // 같은 코드가 세로로 긴 창에서는 예산을 넘는다 — 항목 4에서 x 범위와 nS 를 창과
   // 무관하게 만든 것과 같은 이유다. 실제 창 기하의 recompute() 값은 기록으로 남긴다.
@@ -496,6 +485,8 @@
   // =====================================================================
   // 시작
   // =====================================================================
+  // 패널 캡션의 과장 배율은 상수에서 채운다 — 1 로 바꾸면 문구도 따라간다.
+  document.getElementById("wireExagVal").textContent = P.WIRE_DRAW_EXAGGERATION;
   syncLabels();
   window.addEventListener("resize", resize);
   resize();          // layout 확정 + recompute + drawFrame
