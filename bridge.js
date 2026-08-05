@@ -12,6 +12,12 @@
 (function () {
   "use strict";
 
+  // 최상위 프레임이면 아무것도 하지 않는다. 이 파일은 비교 페이지가 iframe 안의 앱을
+  // 제어하기 위한 것이므로, 앱을 단독으로 열었을 때는 리스너도 스타일 주입도 없어야 한다.
+  // 이것이 "원본 앱을 단독 로드하면 동작·콘솔·화면이 작업 전과 완전히 동일하다"
+  // (설계 §10-2 9번)를 보장하는 근거다.
+  if (window.top === window) return;
+
   const APP = (document.currentScript && document.currentScript.dataset.app) || "grid";
   const SETTLE_MS = 120;   // 기존 script.js 의 60 ms 디바운스보다 넉넉하게
 

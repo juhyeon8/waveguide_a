@@ -396,8 +396,43 @@
 
   // =====================================================================
   // 9. 콘솔 자가검증
-  //    판정은 verify.js 한 곳에만 있다. 여기서는 실측 env 를 넣어 부르기만 한다.
+  //    §10-1 의 1~9 번 판정은 verify.js 한 곳에만 있다. 여기서는 실측 env 를 넣어
+  //    부르기만 한다. 항목 0(환경 기록)과 항목 10(recompute 실측)만 여기 있다 —
+  //    둘 다 캔버스 크기·recompute 호출에 의존해 브라우저에서만 얻을 수 있기 때문이다.
   // =====================================================================
+  // ── 항목 0. 환경 기록 (항상 출력, 판정 없음) ───────────────────────
+  // nS 가 Δx/4 에 묶여 있어 창 크기에 따라 달라지므로, 논문 그림 캡처 시의 값을
+  // HANDOFF.md 에 남길 수 있도록 매번 기록한다.
+  function logEnvRecord() {
+    const aspect = layout.bandH / layout.bandW;
+    const g0 = P.gridGeom(P.GRID_W_INF, aspect);
+    const g1 = P.gridGeom(P.GRID_W_FINITE, aspect);
+    // 기본 조건(λ=12.2 cm, d=10 mm, a=0.5 mm)의 화면 렌더용 표본 수
+    const a_m = P.aEffMm(0.5, 10) / 1000;
+    function line(name, g) {
+      const nS = P.nSampleFor(a_m, 0.122, g.dx_m);
+      return "        " + name + "  gridW=" + g.gridW + " gridH=" + g.gridH +
+        " Δx=" + (g.dx_m * 1000).toFixed(4) + "mm nS=" + nS +
+        " Δ'=" + (2 * a_m * 1000 / nS).toFixed(4) + "mm";
+    }
+    console.log("[검증] 0. 환경 기록 … PASS\n" +
+      "        캔버스 CSS " + layout.cssW.toFixed(0) + "×" + layout.cssH.toFixed(0) + " px\n" +
+      line("Tab0", g0) + "\n" + line("Tab1", g1));
+  }
+
+  // ── 항목 10. 최악 조건 recompute() 소요시간 < 300 ms ────────────────
+  function logPerfRecord(ms) {
+    const judge = !document.hidden;
+    const src = judge
+      ? "브라우저 recompute() 실측 (탭 표시 상태)"
+      : "브라우저 recompute() — 탭이 백그라운드라 [기록·판정 아님]. " +
+        "탭을 보이게 하면 다시 측정한다";
+    const verdict = judge ? (ms < 300 ? "PASS" : "FAIL") : "PASS";
+    console.log("[검증] 10. 최악 조건 소요시간 (λ=1cm d=10mm a=3mm N=60) … " + verdict +
+      "\n        " + Math.round(ms) + " ms · " + src + " (기준 <300 ms)");
+    return !judge || ms < 300;
+  }
+
   // 최악 조건 recompute() 를 7회 재고 최소값을 돌려준다 (설계 §9-1 과 같은 방법).
   // 첫 회는 JIT 예열 전이라 3배까지 느리게 나온다.
   function measureWorstMs() {
@@ -429,31 +464,23 @@
       if (document.hidden) return;
       document.removeEventListener("visibilitychange", onVis);
       console.log("[검증] 탭이 보이게 되었습니다 — 항목 0·10 을 다시 측정합니다.");
-      const out = V.run({
-        label: "브라우저 실측 (탭 표시 상태)",
-        aspect: layout.bandH / layout.bandW,
-        cssW: layout.cssW, cssH: layout.cssH,
-        recomputeMs: measureWorstMs(),
-        hidden: false,
-        perfOnly: true,
-      });
-      out.lines.forEach(function (l) { console.log(l); });
+      logEnvRecord();
+      logPerfRecord(measureWorstMs());
     });
   }
 
   function runVerification() {
-    // 항목 10 용 최악 조건 recompute() 실측 — λ=1cm, d=10mm, a=3mm, N=60, Tab 1
+    // 측정을 먼저 한다. 항목 1~9 를 먼저 돌린 뒤 재면 V8 최적화 해제로 3배까지
+    // 부풀려진다 (설계 §9-4). 출력 순서는 0 → 1~9 → 10 으로 맞춘다.
     const worstMs = measureWorstMs();
-    const out = V.run({
+    logEnvRecord();                               // 항목 0
+    const out = V.run({                           // 항목 1~9
       label: "브라우저 실측",
       aspect: layout.bandH / layout.bandW,
-      cssW: layout.cssW, cssH: layout.cssH,
-      recomputeMs: worstMs,
-      hidden: document.hidden,
-      perfOnly: false,
     });
     out.lines.forEach(function (l) { console.log(l); });
-    console.log(out.pass ? "[검증] 전 항목 PASS" : "[검증] FAIL 항목 있음");
+    const perfOk = logPerfRecord(worstMs);        // 항목 10
+    console.log((out.pass && perfOk) ? "[검증] 전 항목 PASS" : "[검증] FAIL 항목 있음");
     remeasureWhenVisible();
   }
 

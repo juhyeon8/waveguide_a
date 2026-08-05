@@ -27,7 +27,11 @@
   const USE_Y_SYMMETRY = true;
   const WIRE_DRAW_EXAGGERATION = 5;
   const VERIFY_N_ODD = 401;   // 검증 전용 배열 크기 — 반드시 홀수
-  const EVANESCENT_EPS = 1e-7;
+  // 열별 소멸파 조기종료 임계. HUYGENS_M 보다 먼저 급수를 자르면 안 된다.
+  // 1e-7 이면 최근접 열에서 λ=12.2cm·d=10mm 는 m=28, λ=1cm·d=60mm 는 m=166 에서
+  // 잘려 M=200 에 닿지도 못하고, 실오차가 §9-1 표(1e-10 수준)보다 3~10⁴배 커진다.
+  // 1e-10 이면 절단이 각각 m=42 / 249 로 밀려 M 이 다시 구속 조건이 된다.
+  const EVANESCENT_EPS = 1e-10;
 
   // 원본 앱과 동일해야 하는 값
   const A_RATIO_MAX = 0.30;
@@ -89,8 +93,13 @@
     const s = f / Math.sqrt(x);
     out[0] = s * Math.cos(t); out[1] = s * Math.sin(t);
   }
-  const _h = new Float64Array(2);
-  function hankel1(x) { hankel1Into(x, _h); return { re: _h[0], im: _h[1] }; }
+  // 모듈 전역 상태를 두지 않는다 (파일 경계 원칙 — 설계 §12). 스크래치는 호출마다 만든다.
+  // 안쪽 루프가 아니라 함수 진입부에서만 만들므로 비용은 무시할 수준이다.
+  function hankel1(x) {
+    const out = new Float64Array(2);
+    hankel1Into(x, out);
+    return { re: out[0], im: out[1] };
+  }
 
   function sinc(u) { return u === 0 ? 1 : Math.sin(u) / u; }
 
@@ -274,13 +283,18 @@
   //   Δre = +(k/2)(x/r)Δ'·H₁ᵢ ,  Δim = −(k/2)(x/r)Δ'·H₁ᵣ
   // 막힌 부분만 적분하는 바비네 뒤집기이므로 a = 0 이면 기여가 정확히 0 이다.
   // (Δ' = 0 이면 r 클램프도 0 이 되어 H₁(0) 이 발산하므로 반드시 먼저 걸러야 한다.)
-  const _hRs = new Float64Array(2);
-  function rsDiffAt(wx, wy, k, wiresY, a_m, nS) {
+  // scratch 는 선택 인자다. Float64Array(2) 를 넘기면 그것을 작업 공간으로 쓴다.
+  // 모듈 전역 스크래치를 두지 않으면서(설계 §12 파일 경계 원칙) 안쪽 루프의 할당도
+  // 없애기 위한 것이다. 호출자 소유이므로 함수는 여전히 순수하다 —
+  // 같은 입력에 같은 출력이고, scratch 의 잔여 내용은 결과에 영향을 주지 않는다.
+  // 안쪽 루프에서 객체를 만들면 Chrome 이 탈출 분석으로 없애 주지 못해 3.7배,
+  // 점마다 새 배열을 만들면 Node 가 25 % 느려진다 (HANDOFF §8).
+  function rsDiffAt(wx, wy, k, wiresY, a_m, nS, scratch) {
     if (wx <= 0 || a_m <= 0) return { re: 0, im: 0 };
     const dPrime = 2 * a_m / nS;
     const rMin = dPrime / 2;
     const pref = 0.5 * k * dPrime;
-    const h = _hRs;                      // 호출마다 객체를 만들지 않는다 (hankel1Into 주석)
+    const h = scratch || new Float64Array(2);
     let sr = 0, si = 0;
     for (let n = 0; n < wiresY.length; n++) {
       const y0 = wiresY[n] - a_m;
@@ -304,6 +318,7 @@
     const n = g.gridW * g.gridH;
     const outRe = new Float32Array(n), outIm = new Float32Array(n);
     if (a_m <= 0) return { re: outRe, im: outIm };
+    const scratch = new Float64Array(2);   // 격자 전체에 하나. rsDiffAt 주석 참조
     const half = useSymmetry ? Math.ceil(g.gridH / 2) : g.gridH;
     for (let gj = 0; gj < half; gj++) {
       const wy = cellY(gj, g);
@@ -313,7 +328,7 @@
       for (let gi = 0; gi < g.gridW; gi++) {
         const wx = cellX(gi, g);
         if (wx <= 0) continue;
-        const v = rsDiffAt(wx, wy, k, wiresY, a_m, nS);
+        const v = rsDiffAt(wx, wy, k, wiresY, a_m, nS, scratch);
         outRe[base + gi] = v.re; outIm[base + gi] = v.im;
         if (useSymmetry && mirror !== gj) {
           outRe[mbase + gi] = v.re; outIm[mbase + gi] = v.im;
@@ -339,10 +354,11 @@
     const d_m = d_mm / 1000;
     const a_m = aEffMm(a_mm, d_mm) / 1000;
     const wires = wireYs(N, d_m);
+    const scratch = new Float64Array(2);   // rsDiffAt 주석 참조
     let sum = 0;
     for (let s = 0; s < T_MEAS_SAMPLES; s++) {
       const wy = -T_MEAS_YHALF + (s / (T_MEAS_SAMPLES - 1)) * 2 * T_MEAS_YHALF;
-      const dv = rsDiffAt(T_MEAS_X, wy, k, wires, a_m, T_NS_FIXED);
+      const dv = rsDiffAt(T_MEAS_X, wy, k, wires, a_m, T_NS_FIXED, scratch);
       const tr = Math.cos(k * T_MEAS_X) + dv.re;
       const ti = Math.sin(k * T_MEAS_X) + dv.im;
       sum += tr * tr + ti * ti;

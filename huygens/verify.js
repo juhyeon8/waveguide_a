@@ -33,29 +33,9 @@
     return { g: g, k: k, d_m: d_m, a_m: a_m, nS: nS, wiresY: P.wireYs(N, d_m) };
   }
 
-  // ── 항목 0. 환경 기록 (항상 출력, 판정 없음) ───────────────────────
-  function check0(env) {
-    const g0 = P.gridGeom(P.GRID_W_INF, env.aspect);
-    const g1 = P.gridGeom(P.GRID_W_FINITE, env.aspect);
-    // 기본 조건(λ=12.2 cm, d=10 mm, a=0.5 mm)의 화면 렌더용 표본 수
-    const a_m = P.aEffMm(0.5, 10) / 1000;
-    const nS0 = P.nSampleFor(a_m, 0.122, g0.dx_m);
-    const nS1 = P.nSampleFor(a_m, 0.122, g1.dx_m);
-    const css = (env.cssW && env.cssH)
-      ? env.cssW.toFixed(0) + "×" + env.cssH.toFixed(0) + " px"
-      : "(브라우저 아님 — " + env.label + ")";
-    return {
-      no: 0, name: "환경 기록",
-      pass: true,
-      detail: "캔버스 CSS " + css + "\n" +
-        "        Tab0  gridW=" + g0.gridW + " gridH=" + g0.gridH +
-        " Δx=" + (g0.dx_m * 1000).toFixed(4) + "mm nS=" + nS0 +
-        " Δ'=" + (2 * a_m * 1000 / nS0).toFixed(4) + "mm\n" +
-        "        Tab1  gridW=" + g1.gridW + " gridH=" + g1.gridH +
-        " Δx=" + (g1.dx_m * 1000).toFixed(4) + "mm nS=" + nS1 +
-        " Δ'=" + (2 * a_m * 1000 / nS1).toFixed(4) + "mm",
-    };
-  }
+  // 항목 0(환경 기록)과 항목 10(recompute 실측)은 여기에 없다.
+  // 둘 다 브라우저에서만 얻는 값이고 DOM(캔버스 크기·recompute 호출)에 의존하므로
+  // script.js 쪽에 있다. 이 파일은 DOM 을 만지지 않는다 (설계 §12 파일 경계 원칙).
 
   // ── 항목 1. 베셀 J₁/Y₁ 기준값 ──────────────────────────────────────
   function check1() {
@@ -77,20 +57,25 @@
     };
   }
 
-  // ── 항목 2. a = 0 이면 차이장이 전 격자에서 0 ──────────────────────
+  // ── 항목 2. a → 0 이면 차이장이 전 격자에서 0 ──────────────────────
+  // a = 0 을 그대로 쓰면 자명하게 통과한다 — Tab 0 은 t_m = δ_{m0} 이라 급수가 통째로
+  // 사라지고, Tab 1 은 적분 폭이 0 이라 조기 반환된다. 즉 적분 경로가 한 번도 안 돈다.
+  // a = 0.001 mm 로 두어 두 경로가 실제로 돌게 한 뒤 판정한다. 기준은 그대로 1e-3·A.
+  const A_TINY_MM = 0.001;
   function check2(env) {
-    const s0 = setup(env, P.GRID_W_INF, 12.2, 10, 0, 30);
-    const A = P.analyticDiffGrid(s0.g, s0.k, s0.d_m, 0);
-    const s1 = setup(env, P.GRID_W_FINITE, 12.2, 10, 0, 30);
-    const R = P.rsDiffGrid(s1.g, s1.k, s1.wiresY, 0, s1.nS, P.USE_Y_SYMMETRY);
+    const s0 = setup(env, P.GRID_W_INF, 12.2, 10, A_TINY_MM, 30);
+    const A = P.analyticDiffGrid(s0.g, s0.k, s0.d_m, s0.a_m);
+    const s1 = setup(env, P.GRID_W_FINITE, 12.2, 10, A_TINY_MM, 30);
+    const R = P.rsDiffGrid(s1.g, s1.k, s1.wiresY, s1.a_m, s1.nS, P.USE_Y_SYMMETRY);
     let wa = 0, wr = 0;
     for (let i = 0; i < A.re.length; i++) wa = Math.max(wa, Math.hypot(A.re[i], A.im[i]));
     for (let i = 0; i < R.re.length; i++) wr = Math.max(wr, Math.hypot(R.re[i], R.im[i]));
     const worst = Math.max(wa, wr);
     return {
-      no: 2, name: "a=0 → |③−①| = 0",
+      no: 2, name: "a→0 (a=" + A_TINY_MM + "mm) → |③−①| ≈ 0",
       pass: worst < 1e-3,
-      detail: "해석급수 " + fmt(wa) + " / RS적분 " + fmt(wr) + " (기준 <1e-3·A)",
+      detail: "해석급수 " + fmt(wa) + " / RS적분 " + fmt(wr) +
+        " (기준 <1e-3·A · 적분 경로가 실제로 도는 조건)",
     };
   }
 
@@ -368,53 +353,35 @@
     };
   }
 
-  // ── 항목 10. 최악 조건 소요시간 < 300 ms ───────────────────────────
-  // 최악 조건: λ=1 cm, d=10 mm, a=3 mm(=0.3·d 상한), N=60, Tab 1
-  function check10(env) {
-    let ms, src, judge = true;
-    if (env.recomputeMs !== null && env.recomputeMs !== undefined) {
-      ms = Math.round(env.recomputeMs);
-      if (env.hidden) {
-        // 백그라운드 탭은 Chrome 이 우선순위를 낮춰 같은 코드가 3배까지 느려진다
-        // (실측 201 ms → 553~601 ms). 무효한 측정으로 판정하지 않는다.
-        src = "브라우저 recompute() — 탭이 백그라운드라 [기록·판정 아님]. " +
-          "탭을 보이게 하면 다시 측정한다";
-        judge = false;
-      } else {
-        src = "브라우저 recompute() 실측 (탭 표시 상태)";
-      }
-    } else {
-      const g = P.gridGeom(P.GRID_W_FINITE, env.aspect);
-      const k = P.TWO_PI / 0.01;
-      const a_m = P.aEffMm(3, 10) / 1000;
-      const nS = P.nSampleFor(a_m, 0.01, g.dx_m);
-      const wires = P.wireYs(60, 0.010);
-      // 설계 §9-1 과 같은 방법으로 잰다: 7회 중 최소. 첫 회는 JIT 예열 전이다.
-      // 브라우저 쪽 recompute() 측정과 방법이 같아야 나란히 비교할 수 있다.
-      // recompute() 의 지배적 두 부분(격자 RS 적분 + T_fin)을 함께 잰다.
-      ms = Infinity;
-      for (let i = 0; i < 7; i++) {
-        const t0 = Date.now();
-        P.rsDiffGrid(g, k, wires, a_m, nS, P.USE_Y_SYMMETRY);
-        P.T_fin_huygens(1, 10, 3, 60);
-        const e = Date.now() - t0;
-        if (e < ms) ms = e;
-      }
-      if (env.perfOnly) {
-        src = "Node 격리 프로세스 측정 (권위 있는 값)";
-      } else {
-        // 설계 §9-4 계측 주의: 한 프로세스에서 항목 1~9 를 먼저 돌린 뒤 재면 V8 최적화
-        // 해제로 최대 3배까지 부풀려진다(실측 328 → 1206 ms). 무효한 측정으로 판정하지
-        // 않는다. 판정은 --perf 격리 측정과 브라우저 실측에서만 한다.
-        src = "Node 같은 프로세스 측정 — [기록·판정 아님]. 판정은 --perf 또는 브라우저에서";
-        judge = false;
-      }
+  // ── Node 물리 벤치마크 (--perf) ─────────────────────────────────
+  // 항목 10(브라우저 recompute() 실측)이 아니다. 그건 DOM 에 의존하므로 script.js 에 있다.
+  // 이것은 같은 최악 조건의 물리 계산만 Node 에서 재는 것으로, 브라우저 값과 나란히
+  // 놓고 보기 위한 참고치다. 판정하지 않는다.
+  //
+  // 반드시 조건마다 프로세스를 격리해 부를 것 (설계 §9-4). 한 프로세스에서 여러 조건을
+  // 연달아 재면 V8 최적화 해제로 같은 코드가 3배까지 느려진다 (실측 328 → 1206 ms).
+  function benchReport(aspect) {
+    const g = P.gridGeom(P.GRID_W_FINITE, aspect);
+    const k = P.TWO_PI / 0.01;
+    const a_m = P.aEffMm(3, 10) / 1000;
+    const nS = P.nSampleFor(a_m, 0.01, g.dx_m);
+    const wires = P.wireYs(60, 0.010);
+    // 설계 §9-1 과 같은 방법: 7회 중 최소. 첫 회는 JIT 예열 전이다.
+    // recompute() 의 지배적 두 부분(격자 RS 적분 + T_fin)을 함께 잰다.
+    let ms = Infinity;
+    for (let i = 0; i < 7; i++) {
+      const t0 = Date.now();
+      P.rsDiffGrid(g, k, wires, a_m, nS, P.USE_Y_SYMMETRY);
+      P.T_fin_huygens(1, 10, 3, 60);
+      const e = Date.now() - t0;
+      if (e < ms) ms = e;
     }
-    return {
-      no: 10, name: "최악 조건 소요시간 (λ=1cm d=10mm a=3mm N=60)",
-      pass: judge ? ms < 300 : true,
-      detail: ms + " ms · " + src + " (기준 <300 ms)",
-    };
+    return [
+      "[벤치] Node 물리 벤치마크 — 최악 조건 λ=1cm d=10mm a=3mm N=60, Tab 1",
+      "[벤치] gridW=" + g.gridW + " gridH=" + g.gridH + " nS=" + nS +
+        "  ·  7회 중 최소 " + ms + " ms  (예산 300 ms)",
+      "[벤치] 항목 10(브라우저 recompute 실측)과 다른 값이다. 판정하지 않는다.",
+    ];
   }
 
   // ── Node 전용 수렴 시험 (--converge) ───────────────────────────────
@@ -476,17 +443,17 @@
     return lines;
   }
 
-  const CHECKS = [check0, check1, check2, check3, check4, check5,
-                  check6, check7, check8, check9, check10];
+  // 설계 §10-1 의 1~9 번. 항목 0·10 은 브라우저 전용이라 script.js 에 있다.
+  const CHECKS = [check1, check2, check3, check4, check5,
+                  check6, check7, check8, check9];
 
   function run(env) {
     const e = env || NODE_DEFAULT_ENV;
-    const list = e.perfOnly ? [check0, check10] : CHECKS;
     const lines = [];
     const results = [];
     let allPass = true;
-    for (let i = 0; i < list.length; i++) {
-      const r = list[i](e);
+    for (let i = 0; i < CHECKS.length; i++) {
+      const r = CHECKS[i](e);
       results.push(r);
       if (!r.pass) allPass = false;
       lines.push("[검증] " + r.no + ". " + r.name + " … " +
@@ -495,7 +462,10 @@
     return { pass: allPass, lines: lines, results: results };
   }
 
-  return { run: run, convergeReport: convergeReport, NODE_DEFAULT_ENV: NODE_DEFAULT_ENV };
+  return {
+    run: run, convergeReport: convergeReport, benchReport: benchReport,
+    NODE_DEFAULT_ENV: NODE_DEFAULT_ENV,
+  };
 });
 
 // Node 직접 실행: node huygens/verify.js  [--perf | --converge]
@@ -505,10 +475,13 @@ if (typeof require !== "undefined" && typeof module !== "undefined" && require.m
     V.convergeReport().forEach(function (l) { console.log(l); });
     process.exit(0);
   }
-  const perf = process.argv.indexOf("--perf") !== -1;
-  const env = Object.assign({}, V.NODE_DEFAULT_ENV, { perfOnly: perf });
-  if (perf) console.log("[검증] --perf 모드: 항목 0·10 만 실행 (조건별 프로세스 격리)");
-  const out = V.run(env);
+  if (process.argv.indexOf("--perf") !== -1) {
+    // 이 모드는 판정을 돌리지 않는다. 같은 프로세스에서 항목 1~9 를 먼저 돌리면
+    // V8 최적화 해제로 측정이 3배까지 왜곡되기 때문이다 (설계 §9-4).
+    V.benchReport(V.NODE_DEFAULT_ENV.aspect).forEach(function (l) { console.log(l); });
+    process.exit(0);
+  }
+  const out = V.run(V.NODE_DEFAULT_ENV);
   out.lines.forEach(function (l) { console.log(l); });
   console.log(out.pass ? "[검증] 전 항목 PASS" : "[검증] FAIL 항목 있음");
   process.exit(out.pass ? 0 : 1);
