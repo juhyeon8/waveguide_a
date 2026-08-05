@@ -1,0 +1,61 @@
+/* 비교 페이지 — Phase 2-0 배선 확인 골격.
+   원본 앱의 style.css 를 불러오지 않는다. #app·#panel 같은 선택자가 겹치면
+   iframe 밖에서 예상 못 한 영향을 준다. 여기에 필요한 것만 둔다. */
+
+:root {
+  --border: #d8d8de;
+  --muted: #6b6b72;
+  --ink: #10193a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 14px/1.6 "Malgun Gothic", "맑은 고딕", sans-serif;
+  color: var(--ink);
+  background: #fafafc;
+}
+
+#bar {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+#bar h1 { margin: 0 0 8px; font-size: 16px; }
+
+.row { display: flex; align-items: center; gap: 10px; max-width: 640px; }
+.row label { width: 48px; flex: none; }
+.row input[type="range"] { flex: 1; min-width: 0; }
+.valbox {
+  width: 82px; flex: none; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.note { margin-top: 8px; font-size: 11px; color: var(--muted); }
+
+#split { display: flex; gap: 12px; padding: 12px 16px; }
+.pane { flex: 1; min-width: 0; margin: 0; }
+.pane figcaption { margin-bottom: 6px; font-size: 12px; font-weight: 700; }
+.pane figcaption .sub { font-weight: 400; color: var(--muted); }
+
+/* 캔버스만 보이는 iframe. 높이를 고정해야 안쪽 #app 의 height:100vh 가 그 높이를 쓴다. */
+.pane iframe {
+  display: block;
+  width: 100%;
+  height: 62vh;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+#probe {
+  margin: 0 16px 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  font-family: Consolas, "D2Coding", monospace;
+  white-space: pre-wrap;
+}
+#probe.ok { border-color: #2f8a4f; color: #1f6b3a; }
+#probe.bad { border-color: #b5651d; color: #8a4512; }

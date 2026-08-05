@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>비교 — 실제 격자 모형 ↔ 하위헌스-장애물 모형</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Phase 2-0 (배선 확인) 골격입니다.
+     마스터 컨트롤은 λ 하나만 배선했고, 하단 정량 패널·T(λ) 곡선·CSV 는 아직 없습니다. -->
+
+<div id="bar">
+  <h1>실제 격자 모형 ↔ 하위헌스-장애물 모형</h1>
+  <div class="row">
+    <label for="mLam">파장 λ</label>
+    <input type="range" id="mLam" min="1" max="30" step="0.1" value="12.2">
+    <span class="valbox" id="mLamVal">—</span>
+  </div>
+  <div class="note">비교는 <b>E∥ 조건</b>에서만 정의됩니다. 하위헌스-장애물 모형에는 편광
+    개념이 없어 E⊥ 에서는 대응이 성립하지 않습니다.</div>
+</div>
+
+<div id="split">
+  <figure class="pane">
+    <figcaption>실제 모형 <span class="sub">— 도선에 유도전류가 흐르는 격자</span></figcaption>
+    <!-- 디렉터리 URL 을 쓴다. `../index.html?embed=1` 은 `npx serve` 의 clean-URL 이
+         `301 → /index` 로 리다이렉트하면서 **쿼리스트링을 버려** embed 가 풀린다. -->
+    <iframe id="left" title="실제 격자 모형" src="../?embed=1"></iframe>
+  </figure>
+  <figure class="pane">
+    <figcaption>하위헌스-장애물 모형 <span class="sub">— 대조군</span></figcaption>
+    <iframe id="right" title="하위헌스-장애물 대조군" src="../huygens/?embed=1"></iframe>
+  </figure>
+</div>
+
+<!-- 배선 진단줄. Phase 2-0 확인용이며 설계 §8-3 의 하단 정량 패널이 아닙니다. -->
+<div id="probe" class="note">배선 확인 대기 중…</div>
+
+<script src="script.js"></script>
+</body>
+</html>
