@@ -225,14 +225,17 @@
     }
 
     // 진행방향 화살표 (입사 칸, 왼→오른). 편광 표시기는 없다 — 이 모형에 편광이 없다.
+    // 화살표 그림은 방향을 나타내는 그림이라 늘 그리고, 그 라벨만 토글에 넣는다.
     if (band === 0) {
       const ay = by + 16, ax = bx + 16;
       ctx.fillStyle = "#444"; ctx.strokeStyle = "#444"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + 34, ay); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(ax + 34, ay); ctx.lineTo(ax + 27, ay - 4);
       ctx.lineTo(ax + 27, ay + 4); ctx.closePath(); ctx.fill();
-      ctx.font = "11px sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = "#444";
-      ctx.fillText("입사파 진행 →", ax, ay - 8);
+      if (P.DRAW_BAND_TITLES) {
+        ctx.font = "11px sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = "#444";
+        ctx.fillText("입사파 진행 →", ax, ay - 8);
+      }
     }
 
     // 밴드 제목 (좌측 하단). 캡션은 여기 그리지 않는다 — 패널 .hint 에 있다.
