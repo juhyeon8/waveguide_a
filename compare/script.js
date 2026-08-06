@@ -135,7 +135,313 @@
       (lamGtD ? " · [기록] |T_유한 − T_무한|(하위헌스) = " + dev.toFixed(2) + " %p" : "");
   }
 
-  function apply() { syncLabels(); broadcast(); updateQuant(); }
+  // ── T(λ) 곡선 (설계 §8-4 · 그리기 규칙 §8-4-1) ─────────────────────
+  // 하단 정량 패널과 같이 iframe 통신에 의존하지 않고 직접 계산한다 (§8-2).
+
+  // 논문 그림 캡처 모드. DRAW_BAND_TITLES 와 같은 방식이다 (§8-4-1 (6), §15-16).
+  let LEGEND_IN_CANVAS = false;
+  const Y_MAX_PCT = 120;        // y 상한 고정 (§8-4-1 (2))
+  const FIN_DEBOUNCE_MS = 250;  // 유한 곡선 전용 디바운스 (§8-4-2)
+
+  const LAM_INF = [];   // 0.1 cm 간격 · 291점 — 해석식이라 즉시
+  for (let i = 0; i < 291; i++) LAM_INF.push(+(1 + i * 0.1).toFixed(1));
+  const LAM_FIN = [];   // 0.5 cm 간격 · 59점 — 수치
+  for (let i = 0; i < 59; i++) LAM_FIN.push(+(1 + i * 0.5).toFixed(1));
+
+  // 색은 모형으로, 선 종류는 무한/유한으로 가른다. 점선 틈을 넓게 잡아 아래 실선이
+  // 보이게 한다 — λ>d 에서 두 하위헌스 곡선은 겹친다 (게이트 7 최대 편차 1.4 %p).
+  const CV = {
+    infGrid: { color: "#12508f", dash: [],     w: 2.2, label: "무한·실제 (Floquet)" },
+    infHuy:  { color: "#b3400e", dash: [],     w: 2.2, label: "무한·하위헌스" },
+    finGrid: { color: "#5b9de8", dash: [7, 5], w: 2.6, label: "유한·실제 (MoM)" },
+    finHuy:  { color: "#f0a15e", dash: [7, 5], w: 2.6, label: "유한·하위헌스 (RS)" },
+  };
+  const CV_ORDER = ["infGrid", "infHuy", "finGrid", "finHuy"];
+  const CM = { l: 78, r: 18, t: 20, b: 62 };
+
+  // gap 판정 — **무한·실제(Floquet) 곡선에만.** 무손실 격자의 전력 투과율은 1 을 넘을 수
+  // 없다. λ<d 의 다중 전파차수 구간에서 floquetZ 의 1/κ 가 커져 T>1 이 나오는데 물리가
+  // 아니라 수치 인공물이다. 값은 버리지 않는다 (CSV 원값·화면 진단).
+  //
+  // **유한 곡선에는 적용하지 않는다.** 유한 T 는 전력 유속이 아니라 측정창 평균 |E|²
+  // 이므로 간섭으로 1 을 넘는 것이 물리다 (§8-3 의 정의 분리).
+  const GAP_KEY = "infGrid";
+  function isGap(p) { return p.T > 1; }
+
+  // 유한 곡선이 쓰는 N — §8-4 의 "마스터 컨트롤바의 현재 N 값".
+  // 언제나 tabState[1].N 이다. 탭 0 의 N 은 0(앱이 자동 결정, 표시 전용)이라 쓸 수 없고,
+  // 마스터 N 슬라이더가 실제로 들고 있는 값이 탭 1 의 값이기 때문이다. 탭 0 에서도
+  // 유한 곡선을 그리므로 (곡선은 탭과 무관하다) 이 값이 필요하다.
+  function curveN() { return tabState[1].N; }
+
+  // d/λ 가 정수인 λ (스캔 범위 안). Rayleigh 파장.
+  function rayleighLams(d_mm) {
+    const out = [];
+    for (let n = 1; n <= 60; n++) {
+      const lam = (d_mm / 10) / n;
+      if (lam >= 1 && lam <= 30) out.push({ n: n, lam: lam });
+    }
+    return out;
+  }
+
+  const curve = { d: null, a: null, N: null, inf: null, fin: null, rec: "" };
+  let finToken = { cancelled: false };
+  let finTimer = 0;
+
+  function computeInfinite(d, a) {
+    const infGrid = LAM_INF.map(function (lam) {
+      const r = REF.T_inf_grid(lam, d, a);
+      return { lam: lam, T: r.T, R: r.R, TR: r.T + r.R };
+    });
+    const infHuy = LAM_INF.map((lam) => ({ lam: lam, T: HP.T_inf_huygens(lam, d, a).T }));
+    // [기록] T+R 이탈. **판정이 아니고 임계를 두지 않는다.** Rayleigh 지표가 아니라
+    // floquetZ 임피던스 시트 근사의 충실도 지표다 (설계 §14-7-1).
+    let mx = 0, mxLam = 0, lo5 = Infinity, hi5 = 0;
+    for (const p of infGrid) {
+      const dev = Math.abs(p.TR - 1);
+      if (dev > mx) { mx = dev; mxLam = p.lam; }
+      if (p.lam >= 5) { lo5 = Math.min(lo5, dev); hi5 = Math.max(hi5, dev); }
+    }
+    return { infGrid: infGrid, infHuy: infHuy, gapped: infGrid.filter(isGap),
+             tr: { max: mx, maxLam: mxLam, lo5: lo5, hi5: hi5 } };
+  }
+
+  // 표시가 실제로 그려지도록 페인트를 한 번 양보한다. rAF 는 백그라운드 탭에서 멈추므로
+  // setTimeout 대비를 함께 건다 — yieldToPaint 와 같은 이유다 (설계 §10-2 5-2).
+  function yieldPaint() {
+    return new Promise(function (r) {
+      let done = false;
+      const run = () => { if (!done) { done = true; r(); } };
+      requestAnimationFrame(function () { requestAnimationFrame(run); });
+      setTimeout(run, 250);
+    });
+  }
+
+  // 최악 545 ms 다 (§9-4). 16 ms 마다 페인트를 양보해 진행 표시가 갱신되게 하고,
+  // 청크 경계마다 취소 토큰을 확인해 폐기된 계산의 결과를 화면에 쓰지 않는다 (§8-4-2).
+  async function computeFinite(d, a, N, token) {
+    const finGrid = [], finHuy = [];
+    let slice = performance.now();
+    for (let i = 0; i < LAM_FIN.length; i++) {
+      if (token.cancelled) return null;
+      const lam = LAM_FIN[i];
+      finGrid.push({ lam: lam, T: MOM.T_fin_grid(lam, d, a, N) });
+      finHuy.push({ lam: lam, T: HP.T_fin_huygens(lam, d, a, N) });
+      if (performance.now() - slice > 16) {
+        $("curveBar").style.width = ((i + 1) / LAM_FIN.length * 100).toFixed(0) + "%";
+        $("curvePct").textContent = (i + 1) + " / " + LAM_FIN.length;
+        await yieldPaint();
+        slice = performance.now();
+        if (token.cancelled) return null;
+      }
+    }
+    return { finGrid: finGrid, finHuy: finHuy, N: N };
+  }
+
+  function scheduleFinite(d, a, N) {
+    clearTimeout(finTimer);
+    finToken.cancelled = true;            // 진행 중이던 계산을 버린다
+    curve.fin = null;                     // 낡은 곡선을 화면에 남기지 않는다
+    finTimer = setTimeout(async function () {
+      const my = finToken = { cancelled: false };
+      $("curveProg").hidden = false;
+      $("curveBar").style.width = "0%";
+      $("curvePct").textContent = "0 / " + LAM_FIN.length;
+      await yieldPaint();
+      const r = await computeFinite(d, a, N, my);
+      if (my.cancelled || !r) return;     // 폐기된 계산의 결과는 쓰지 않는다
+      curve.fin = r;
+      $("curveProg").hidden = true;
+      drawCurve();
+      renderCurveLegend();
+    }, FIN_DEBOUNCE_MS);
+  }
+
+  function drawCurve() {
+    const cv = $("curve");
+    if (!cv || !curve.inf) return;
+    const dpr = window.devicePixelRatio || 1;
+    // 범례를 캔버스에 넣을 때는 캔버스를 아래로 늘려 축 밑에 띠를 만든다.
+    // 플롯 영역은 두 모드에서 완전히 같다 — 곡선이 범례에 가려지지 않는다 (§8-4-1 (6)).
+    const PLOT_H = 430;
+    const legendH = LEGEND_IN_CANVAS ? 128 : 0;
+    const W = cv.clientWidth, H = PLOT_H + legendH;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.height = H + "px";
+    const g = cv.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+
+    const x0 = CM.l, x1 = W - CM.r, y0 = CM.t, y1 = PLOT_H - CM.b;
+    // Y_MAX_PCT 는 **퍼센트**, 곡선 T 는 **분수**다. py 에서 단위를 맞춘다.
+    const px = (lam) => x0 + (lam - 1) / 29 * (x1 - x0);
+    const py = (T) => y1 - (T * 100 / Y_MAX_PCT) * (y1 - y0);
+
+    // 현재 λ 세로 표시선 — **곡선보다 먼저** 그린다. 위에 그리면 곡선을 가린다.
+    const mx = px(shared.lam_cm);
+    g.save();
+    g.strokeStyle = "#b9c2cc"; g.lineWidth = 1; g.setLineDash([4, 3]);
+    g.beginPath(); g.moveTo(mx, y0); g.lineTo(mx, y1); g.stroke();
+    g.restore();
+
+    g.save();
+    g.strokeStyle = "#e8ecf1"; g.lineWidth = 1;
+    g.fillStyle = "#6b6b72"; g.font = "12px 'Malgun Gothic', sans-serif";
+    for (let t = 0; t <= Y_MAX_PCT + 1e-9; t += 20) {
+      const y = py(t / 100);
+      g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+      g.textAlign = "right"; g.textBaseline = "middle";
+      g.fillText(t + " %", x0 - 8, y);
+    }
+    g.textAlign = "center"; g.textBaseline = "top";
+    for (const lam of [1, 5, 10, 15, 20, 25, 30]) {
+      const x = px(lam);
+      g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke();
+      g.fillText(String(lam), x, y1 + 7);
+    }
+    g.strokeStyle = "#9aa5b1"; g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0, y1); g.lineTo(x1, y1); g.stroke();
+    g.restore();
+
+    // d/λ 정수 눈금 (Rayleigh 파장) — 축 아래 ▾ 와 정수값
+    g.save();
+    g.fillStyle = "#8a6a2a"; g.font = "11px 'Malgun Gothic', sans-serif";
+    g.textAlign = "center"; g.textBaseline = "top";
+    rayleighLams(curve.d).forEach(function (r) {
+      const x = px(r.lam);
+      g.beginPath(); g.moveTo(x - 4, y1 + 20); g.lineTo(x + 4, y1 + 20); g.lineTo(x, y1 + 26);
+      g.closePath(); g.fill();
+      g.fillText(String(r.n), x, y1 + 27);
+    });
+    g.restore();
+
+    g.save();
+    g.fillStyle = "#10193a"; g.font = "13px 'Malgun Gothic', sans-serif";
+    g.textAlign = "center"; g.textBaseline = "top";
+    g.fillText("파장 λ [cm]", (x0 + x1) / 2, y1 + 42);
+    g.translate(16, (y0 + y1) / 2); g.rotate(-Math.PI / 2);
+    g.fillText("투과율 T [%]", 0, 0);
+    g.restore();
+
+    const data = {
+      infGrid: curve.inf.infGrid, infHuy: curve.inf.infHuy,
+      finGrid: curve.fin && curve.fin.finGrid, finHuy: curve.fin && curve.fin.finHuy,
+    };
+    for (const key of CV_ORDER) {
+      const pts = data[key];
+      if (!pts || !pts.length) continue;
+      const s = CV[key];
+      g.save();
+      g.strokeStyle = s.color; g.lineWidth = s.w; g.setLineDash(s.dash);
+      g.lineJoin = "round"; g.lineCap = "round";
+      g.beginPath();
+      let pen = false;
+      for (const p of pts) {
+        if (key === GAP_KEY && isGap(p)) { pen = false; continue; }   // 끊는다
+        const X = px(p.lam), Y = py(p.T);
+        if (!pen) { g.moveTo(X, Y); pen = true; } else g.lineTo(X, Y);
+      }
+      g.stroke();
+      g.restore();
+    }
+
+    g.save();
+    g.fillStyle = "#6b6b72"; g.font = "12px 'Malgun Gothic', sans-serif";
+    g.textBaseline = "top";
+    g.textAlign = mx > (x0 + x1) / 2 ? "right" : "left";
+    g.fillText("현재 λ = " + shared.lam_cm.toFixed(1) + " cm",
+      mx + (mx > (x0 + x1) / 2 ? -6 : 6), y0 + 2);
+    g.restore();
+
+    if (LEGEND_IN_CANVAS) drawCurveLegendCanvas(g, x0, x1, PLOT_H);
+  }
+
+  // 캔버스 안 범례 — x 축 라벨 아래 별도 띠. 플롯 안에 넣으면 하위헌스 곡선이나 실제
+  // 곡선의 감쇠 꼬리가 걸린다 (§8-4-1 (6) 실측).
+  function drawCurveLegendCanvas(g, x0, x1, top) {
+    const N = curve.fin ? curve.fin.N : curveN();
+    const lines = [
+      { k: "infGrid" }, { k: "infHuy" },
+      { d: "무한 곡선 정의 — 전파 회절차수 전력합  T = Σ(κ_m/k)|t_m|²" },
+      { k: "finGrid", s: " · N = " + N }, { k: "finHuy", s: " · N = " + N },
+      { d: "유한 곡선 정의 — x = 30 mm · 반높이 22.5 mm · 41 표본 평균 |E|²" },
+      { w: "두 정의는 서로 다릅니다 — 직접 비교하지 마십시오" },
+    ];
+    const lh = 16, padX = 10, padY = 8;
+    g.save();
+    g.strokeStyle = "#d8d8de"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x0, top - 4); g.lineTo(x1, top - 4); g.stroke();
+    g.textBaseline = "middle";
+    lines.forEach(function (ln, i) {
+      const y = top - 4 + padY + i * lh + lh / 2;
+      if (ln.k) {
+        const s = CV[ln.k];
+        g.save();
+        g.strokeStyle = s.color; g.lineWidth = s.w; g.setLineDash(s.dash);
+        g.beginPath(); g.moveTo(x0 + padX, y); g.lineTo(x0 + padX + 30, y); g.stroke();
+        g.restore();
+        g.fillStyle = "#10193a"; g.font = "12px 'Malgun Gothic', sans-serif";
+        g.textAlign = "left"; g.fillText(s.label + (ln.s || ""), x0 + padX + 38, y);
+      } else if (ln.d) {
+        g.fillStyle = "#6b6b72"; g.font = "11px 'Malgun Gothic', sans-serif";
+        g.textAlign = "left"; g.fillText(ln.d, x0 + padX + 4, y);
+      } else {
+        g.fillStyle = "#8a4512"; g.font = "bold 11.5px 'Malgun Gothic', sans-serif";
+        g.textAlign = "left"; g.fillText(ln.w, x0 + padX + 4, y);
+      }
+    });
+    g.restore();
+  }
+
+  function renderCurveLegend() {
+    const N = curve.fin ? curve.fin.N : curveN();
+    const row = (k, extra) => '<div class="lg"><span class="swatch" style="border-top:' +
+      CV[k].w + 'px ' + (CV[k].dash.length ? 'dashed' : 'solid') + ' ' + CV[k].color +
+      '"></span><span>' + CV[k].label + (extra || '') + '</span></div>';
+    $("curveLegend").innerHTML =
+      row('infGrid') + row('infHuy') +
+      '<div class="lgdef">무한 곡선 정의 — 전파 회절차수 전력합 ' +
+        '<code>T = Σ(κ_m/k)|t_m|²</code></div>' +
+      row('finGrid', ' · N = ' + N) + row('finHuy', ' · N = ' + N) +
+      '<div class="lgdef">유한 곡선 정의 — <code>x = 30 mm</code>, 측정창 반높이 ' +
+        '<code>22.5 mm</code>, <code>41</code> 표본 평균 <code>|E|²</code> · ' +
+        '도선당 적분 표본 <code>' + HP.T_NS_FIXED + '</code> 고정</div>' +
+      '<p class="caution">두 정의는 서로 다릅니다 — 무한 곡선과 유한 곡선을 직접 ' +
+        '비교하지 마십시오</p>';
+    $("curveLegend").hidden = LEGEND_IN_CANVAS;
+
+    const tr = curve.inf.tr, gp = curve.inf.gapped;
+    $("curveRec").innerHTML =
+      '<b>[기록] 판정 아님 — 임계 없음.</b> <code>|T+R−1|</code> 전 구간 최대 <b>' +
+        tr.max.toFixed(4) + '</b> (λ=' + tr.maxLam.toFixed(1) + ' cm) · λ ≥ 5 cm 구간 ' +
+        tr.lo5.toFixed(4) + ' ~ ' + tr.hi5.toFixed(4) + '. 이 값은 <b>Rayleigh 지표가 ' +
+        '아니라</b> <code>floquetZ</code> 임피던스 시트 근사의 충실도 지표이며 ' +
+        '<code>a/d</code> 에 계통적으로 의존합니다 (설계 §14-7-1). 현재 <code>a/d</code> = ' +
+        (aEffMm(curve.a, curve.d) / curve.d).toFixed(3) + '.<br>' +
+      '<b>끊은 점 (T &gt; 100 %):</b> ' +
+      (gp.length
+        ? gp.map((p) => 'λ=' + p.lam.toFixed(1) + ' → ' + (p.T * 100).toFixed(1) + ' %')
+            .join(' · ') + ' <b>(' + gp.length + '점)</b>'
+        : '<b>없음 (0점)</b>');
+  }
+
+  function updateCurve() {
+    const ts = tabState[activeTab];
+    const N = curveN();
+    const geomChanged = curve.d !== ts.d_mm || curve.a !== ts.a_mm;
+    if (geomChanged || !curve.inf) {
+      curve.d = ts.d_mm; curve.a = ts.a_mm;
+      curve.inf = computeInfinite(curve.d, curve.a);   // 291점 해석식 — 5 ms 미만
+    }
+    if (geomChanged || curve.N !== N) {
+      curve.N = N;
+      scheduleFinite(curve.d, curve.a, N);
+    }
+    drawCurve();
+    renderCurveLegend();
+  }
+
+  function apply() { syncLabels(); broadcast(); updateQuant(); updateCurve(); }
 
   // ── UI 바인딩 ───────────────────────────────────────────────────────
   // 전환 중 표시. 탭 전환은 좌우 앱의 recompute()+drawFrame() 을 동기로 돌리는데,
@@ -174,6 +480,7 @@
       yieldToPaint(function () {
         broadcast();
         updateQuant();
+        updateCurve();   // 탭마다 d·a 가 다르므로 곡선도 따라가야 한다 (§8-4)
         setTabBusy(false);
       });
     });
@@ -316,8 +623,19 @@
     });
   });
 
+  // 곡선은 iframe 과 무관하게 직접 계산하므로 (§8-2) 로드를 기다리지 않는다.
   syncLabels();
-  window.addEventListener("resize", function () { setTimeout(refreshProbe, 250); });
+  updateCurve();
+
+  $("legendInCanvas").addEventListener("change", function () {
+    LEGEND_IN_CANVAS = this.checked;
+    drawCurve(); renderCurveLegend();
+  });
+
+  window.addEventListener("resize", function () {
+    setTimeout(refreshProbe, 250);
+    drawCurve();                       // 캔버스 폭이 CSS 로 바뀌므로 다시 그린다
+  });
 
   // 게이트 5·6·7 확인을 콘솔/자동화에서 직접 부를 수 있게 노출한다.
   window.CompareProbe = {
@@ -329,5 +647,20 @@
     state: function () {
       return { activeTab: activeTab, shared: shared, tabState: tabState, lastState: lastState };
     },
+    // 게이트 11(디바운스·취소) 과 미리보기 대조용
+    curve: function () {
+      return {
+        d: curve.d, a: curve.a, N: curve.N,
+        finN: curve.fin ? curve.fin.N : null,
+        finReady: !!curve.fin,
+        gapped: curve.inf ? curve.inf.gapped.map((p) => ({ lam: p.lam, T: p.T })) : null,
+        tr: curve.inf ? curve.inf.tr : null,
+        maxFinGrid: curve.fin ? Math.max.apply(null, curve.fin.finGrid.map((p) => p.T)) : null,
+        maxFinHuy: curve.fin ? Math.max.apply(null, curve.fin.finHuy.map((p) => p.T)) : null,
+        maxInfGrid: curve.inf ? Math.max.apply(null, curve.inf.infGrid.map((p) => p.T)) : null,
+        maxInfHuy: curve.inf ? Math.max.apply(null, curve.inf.infHuy.map((p) => p.T)) : null,
+      };
+    },
+    setN: function (n) { $("mN").value = String(n); $("mN").dispatchEvent(new Event("input")); },
   };
 })();

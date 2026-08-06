@@ -97,6 +97,30 @@ body {
   background: #fff;
 }
 
+/* T(λ) 곡선 (설계 §8-4-1) */
+#blockCurve h2 { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.capToggle {
+  font-size: 11px; font-weight: 400; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+}
+/* 폭은 창에 맞추되 상한을 둔다. 상한이 없으면 4K 화면에서 가로로 과도하게 늘어나
+   λ 축이 실제 해상도(0.1 cm 간격)보다 훨씬 길어진다. */
+#curve { display: block; width: 100%; max-width: 1200px; height: auto; }
+
+/* 유한 곡선 진행 표시. 최악 545 ms 이므로 없으면 멈춘 것으로 보인다 (§8-4-2) */
+.prog { display: flex; align-items: center; gap: 10px; margin-top: 6px;
+        font-size: 12px; color: #8a4512; }
+.prog[hidden] { display: none; }
+.bar { width: 200px; height: 7px; background: #f0e4d4; border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: #b5651d; }
+
+.legend { margin-top: 10px; border-top: 1px solid #eceff3; padding-top: 8px; }
+.legend[hidden] { display: none; }
+.lg { display: flex; align-items: baseline; gap: 9px; margin: 4px 0; font-size: 12px; }
+.swatch { flex: none; width: 32px; height: 0; border-top-width: 3px; position: relative; top: -4px; }
+.lgdef { color: var(--muted); font-size: 11px; margin: 2px 0 7px 41px; }
+.cap { font-size: 11.5px; color: #33404d; margin: 7px 0 0; }
+
 #probe {
   margin: 0 16px 16px;
   padding: 8px 10px;

@@ -105,6 +105,29 @@
   </section>
   <p class="note" id="blockBHidden" hidden>[B] 유한 배열 블록은 <b>유한 배열 탭</b>에서만
     표시됩니다.</p>
+
+  <!-- T(λ) 곡선 (설계 §8-4 · 그리기 규칙 §8-4-1) -->
+  <section class="block" id="blockCurve">
+    <h2>T(λ) 곡선
+      <label class="capToggle"><input type="checkbox" id="legendInCanvas">
+        <code>LEGEND_IN_CANVAS</code> — 논문 캡처용</label>
+    </h2>
+    <canvas id="curve"></canvas>
+    <div class="prog" id="curveProg" hidden><span>유한 곡선 계산 중…</span>
+      <span class="bar"><i id="curveBar"></i></span><span id="curvePct"></span></div>
+    <div class="legend" id="curveLegend"></div>
+
+    <p class="cap"><b>하위헌스 곡선은 λ &gt; d 구간에서 <code>(1−2a/d)²</code> 로
+      평탄합니다. 장애물 모형만으로는 파장 의존적 차폐가 나오지 않습니다.</b></p>
+    <p class="cap">두 하위헌스 곡선이 겹치는 것은 λ &gt; d 에서 <b>유한 배열이 무한
+      배열과 같은 값을 준다</b>는 뜻입니다 (게이트 7 실측 최대 편차 1.4 %p).</p>
+    <p class="cap">무손실 격자의 전력 투과율은 1 을 넘을 수 없습니다.
+      <b>λ &lt; d 의 다중 전파차수 구간</b>에서 Floquet 해가 수치적으로
+      <code>T &gt; 100 %</code> 를 내는 점은 <b>곡선에서 끊었습니다</b>. 값은 버리지
+      않고 CSV 와 아래 진단에 남습니다. x 축 아래 ▾ 와 숫자는 <code>d/λ</code> 가
+      정수인 <b>Rayleigh 파장</b>입니다.</p>
+    <div class="note" id="curveRec"></div>
+  </section>
 </div>
 
 <!-- 배선 진단줄. Phase 2-0/2-1 확인용이며 위 정량 패널이 아닙니다. -->
