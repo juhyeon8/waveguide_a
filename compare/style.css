@@ -1,0 +1,134 @@
+/* 비교 페이지 — Phase 2-0 배선 확인 골격.
+   원본 앱의 style.css 를 불러오지 않는다. #app·#panel 같은 선택자가 겹치면
+   iframe 밖에서 예상 못 한 영향을 준다. 여기에 필요한 것만 둔다. */
+
+:root {
+  --border: #d8d8de;
+  --muted: #6b6b72;
+  --ink: #10193a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 14px/1.6 "Malgun Gothic", "맑은 고딕", sans-serif;
+  color: var(--ink);
+  background: #fafafc;
+}
+
+#bar {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+#bar h1 { margin: 0 0 8px; font-size: 16px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 4px 20px;
+  margin-top: 8px;
+}
+.row { display: flex; align-items: center; gap: 10px; }
+.row[hidden] { display: none; }
+.row label { width: 64px; flex: none; }
+.row input[type="range"] { flex: 1; min-width: 0; }
+.valbox {
+  width: 82px; flex: none; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 위상은 일시정지 상태에서만 조작한다 (원본 앱과 같은 규약) */
+#rowPhase { opacity: .4; pointer-events: none; }
+#rowPhase.on { opacity: 1; pointer-events: auto; }
+
+#tabBar { display: flex; gap: 6px; margin-bottom: 4px; align-items: center; }
+.tabBtn[disabled] { opacity: .5; cursor: progress; }
+.busy { font-size: 12px; color: #8a4512; }
+.busy[hidden] { display: none; }
+
+/* 하단 정량 패널 (설계 §8-3) */
+#quant { margin: 0 16px 12px; }
+.block {
+  border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; padding: 10px 14px; margin-bottom: 8px;
+}
+.block[hidden] { display: none; }
+.block h2 { margin: 0 0 8px; font-size: 14px; }
+.block .def { font-size: 11px; font-weight: 400; color: var(--muted); display: block; }
+.block code { font-family: Consolas, "D2Coding", monospace; }
+.vals { display: flex; flex-wrap: wrap; gap: 8px 32px; }
+.v { display: flex; flex-direction: column; }
+.v .k { font-size: 11px; color: var(--muted); }
+.v b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.caution {
+  margin: 8px 0; padding: 6px 10px; font-size: 12px; font-weight: 700;
+  border-left: 3px solid #b5651d; background: #fff6ee; color: #8a4512;
+}
+#blockBHidden[hidden] { display: none; }
+.tabBtn, button.std {
+  padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px;
+  background: #fff; color: var(--ink); font: inherit; cursor: pointer;
+}
+.tabBtn.active { background: #2f6feb; border-color: #2f6feb; color: #fff; font-weight: 700; }
+
+.note { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.note[hidden] { display: none; }
+
+.warn {
+  margin-top: 8px; padding: 6px 10px; font-size: 12px;
+  border: 1px solid #b5651d; border-radius: 4px;
+  background: #fff6ee; color: #8a4512;
+}
+.warn[hidden] { display: none; }
+
+#split { display: flex; gap: 12px; padding: 12px 16px; }
+.pane { flex: 1; min-width: 0; margin: 0; }
+.pane figcaption { margin-bottom: 6px; font-size: 12px; font-weight: 700; }
+.pane figcaption .sub { font-weight: 400; color: var(--muted); }
+
+/* 캔버스만 보이는 iframe. 높이를 고정해야 안쪽 #app 의 height:100vh 가 그 높이를 쓴다. */
+.pane iframe {
+  display: block;
+  width: 100%;
+  height: 62vh;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+/* T(λ) 곡선 (설계 §8-4-1) */
+#blockCurve h2 { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.capToggle {
+  font-size: 11px; font-weight: 400; color: var(--muted);
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+}
+/* 폭은 창에 맞추되 상한을 둔다. 상한이 없으면 4K 화면에서 가로로 과도하게 늘어나
+   λ 축이 실제 해상도(0.1 cm 간격)보다 훨씬 길어진다. */
+#curve { display: block; width: 100%; max-width: 1200px; height: auto; }
+
+/* 유한 곡선 진행 표시. 최악 545 ms 이므로 없으면 멈춘 것으로 보인다 (§8-4-2) */
+.prog { display: flex; align-items: center; gap: 10px; margin-top: 6px;
+        font-size: 12px; color: #8a4512; }
+.prog[hidden] { display: none; }
+.bar { width: 200px; height: 7px; background: #f0e4d4; border-radius: 4px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: #b5651d; }
+
+.legend { margin-top: 10px; border-top: 1px solid #eceff3; padding-top: 8px; }
+.legend[hidden] { display: none; }
+.lg { display: flex; align-items: baseline; gap: 9px; margin: 4px 0; font-size: 12px; }
+.swatch { flex: none; width: 32px; height: 0; border-top-width: 3px; position: relative; top: -4px; }
+.lgdef { color: var(--muted); font-size: 11px; margin: 2px 0 7px 41px; }
+.cap { font-size: 11.5px; color: #33404d; margin: 7px 0 0; }
+
+#probe {
+  margin: 0 16px 16px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  font-family: Consolas, "D2Coding", monospace;
+  white-space: pre-wrap;
+}
+#probe.ok { border-color: #2f8a4f; color: #1f6b3a; }
+#probe.bad { border-color: #b5651d; color: #8a4512; }
