@@ -239,6 +239,7 @@ E_diff = (t₀ − 1)·e^{ikx} + Σ_{m=1}^{M} 2·t_m·cos(α_m y)·e^{iκ_m x}
 | 3 | `DRAW_BAND_TITLES` | 밴드 그림 캡처는 `false` 권장 (아래 §5 참고) |
 | 4 | `LEGEND_IN_CANVAS` | `compare/` T(λ) 곡선 캡처는 `true` 권장 (§5) |
 | 5 | 환경 값 | 아래 `[검증] 0. 환경 기록`을 그대로 옮겨 적을 것 |
+| 6 | **`compare/` T(λ) 곡선의 캔버스 CSS 폭** | `#curve` 는 `width:100% · max-width:1200px` 이라 **창 폭에 따라 달라진다.** 축 눈금 간격과 글자 대비가 폭에 좌우되므로 캡처마다 실측값을 적을 것 — 콘솔에서 `document.getElementById("curve").clientWidth`. 밴드 그림의 `gridW`·`nS` 를 기록하는 것과 같은 이유다 |
 
 `nS`가 `Δx/4`에 묶여 있어 **브라우저 창 크기에 따라 달라진다.** 아래는 실측 창 기준이며,
 캡처할 때마다 콘솔의 `[검증] 0. 환경 기록`을 그대로 옮겨 적을 것.

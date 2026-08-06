@@ -238,11 +238,15 @@
     return { finGrid: finGrid, finHuy: finHuy, N: N };
   }
 
+  function finBusy() { return finTimer !== 0 || curve.fin === null; }
+
   function scheduleFinite(d, a, N) {
     clearTimeout(finTimer);
     finToken.cancelled = true;            // 진행 중이던 계산을 버린다
     curve.fin = null;                     // 낡은 곡선을 화면에 남기지 않는다
+    $("curveProg").hidden = true;
     finTimer = setTimeout(async function () {
+      finTimer = 0;
       const my = finToken = { cancelled: false };
       $("curveProg").hidden = false;
       $("curveBar").style.width = "0%";
@@ -250,7 +254,7 @@
       await yieldPaint();
       const r = await computeFinite(d, a, N, my);
       if (my.cancelled || !r) return;     // 폐기된 계산의 결과는 쓰지 않는다
-      curve.fin = r;
+      curve.fin = r;                      // 이 시점부터 finBusy() 가 false 가 된다
       $("curveProg").hidden = true;
       drawCurve();
       renderCurveLegend();
@@ -436,9 +440,125 @@
     if (geomChanged || curve.N !== N) {
       curve.N = N;
       scheduleFinite(curve.d, curve.a, N);
+    } else if (finBusy()) {
+      // 유한 곡선에 영향이 없는 조작(λ 등)이라도, **계산이 진행 중이면 미룬다.**
+      // §8-4-2 2번("계산 중 재요청이 오면 이전 계산을 폐기")은 마스터 조작 전체에
+      // 걸린다. 이걸 빠뜨리면 계산 중 λ 를 움직일 때 메인 스레드 경합으로 iframe
+      // 전파가 늦어져 **게이트 5 가 최대 471 ms 로 FAIL 한다**(실측).
+      // 조작을 멈추면 디바운스가 끝나 곧바로 계산이 시작된다.
+      scheduleFinite(curve.d, curve.a, N);
     }
     drawCurve();
     renderCurveLegend();
+  }
+
+  // ── CSV 내보내기 (설계 §8-5) ────────────────────────────────────────
+  // 논문에 들어가는 숫자가 파일로 나가는 마지막 관문이다. 정의가 섞이면 앞의 작업이
+  // 전부 무의미해지므로 주석에 두 정의와 경고를 모두 적는다.
+  //
+  // **값은 반올림하지 않는다.** String(v) 는 왕복 정확 표현(round-trip)을 준다.
+  // 표시용 반올림은 §11 표에서 이미 한 번 문제를 만들었다.
+  function num(v) { return v === null || v === undefined ? "" : String(v); }
+
+  // d/λ 가 정수면 1 (스치는 회절차수, κ→0). 부동소수점 여유를 둔다.
+  function rayleighFlag(lam_cm, d_mm) {
+    const r = (d_mm / 10) / lam_cm;
+    return (r >= 1 && Math.abs(r - Math.round(r)) < 1e-9) ? 1 : 0;
+  }
+
+  function buildCSV() {
+    const d = curve.d, a = curve.a, N = curve.fin ? curve.fin.N : curveN();
+    const aEff = aEffMm(a, d);
+    const ratio = aEff / d;
+    // 유한 값은 0.5 cm 격자에서만 계산된다. λ 로 찾아 쓴다 (LAM_FIN ⊂ LAM_INF).
+    const finG = {}, finH = {};
+    if (curve.fin) {
+      curve.fin.finGrid.forEach(function (p) { finG[p.lam] = p.T; });
+      curve.fin.finHuy.forEach(function (p) { finH[p.lam] = p.T; });
+    }
+    // **현재 λ 는 0.5 cm 격자에 없어도 반드시 채운다.** 기본 조건 λ=12.2 cm 가 그렇다 —
+    // 화면 [B] 패널이 보여 주는 값(논문에 싣는 숫자)을 CSV 가 재현하지 못하면 "논문
+    // 숫자가 나가는 마지막 관문"이라는 이 파일의 목적이 무너진다. 2점만 더 계산한다.
+    const lamNow = shared.lam_cm;
+    let extraLam = null;
+    if (!Object.prototype.hasOwnProperty.call(finG, lamNow)) {
+      finG[lamNow] = MOM.T_fin_grid(lamNow, d, a, N);
+      finH[lamNow] = HP.T_fin_huygens(lamNow, d, a, N);
+      extraLam = lamNow;
+    }
+
+    const L = [];
+    L.push("# 비교 페이지 T(λ) 내보내기 — 실제 격자 모형 ↔ 하위헌스-장애물 모형");
+    L.push("# 내보낸 시각: " + new Date().toISOString() + "  (로컬 " + new Date().toLocaleString("ko-KR") + ")");
+    L.push("# 조건: d = " + d + " mm · a = " + a + " mm (유효 " + aEff + " mm) · N = " + N +
+           " · a/d = " + ratio.toFixed(3));
+    L.push("#");
+    L.push("# [무한 열] T_inf_grid · T_inf_huygens");
+    L.push("#   정의: 전파 회절차수 전력합  T = Σ(κ_m/k)|t_m|²");
+    L.push("# [유한 열] T_fin_grid · T_fin_huygens");
+    L.push("#   정의: x = 30 mm, 측정창 반높이 22.5 mm, 41 표본 평균 |E|²");
+    L.push("#   (도선당 적분 표본 " + HP.T_NS_FIXED + " 고정 — 화면 렌더의 nS 와 별개)");
+    L.push("# ** 두 값은 정의가 다르므로 직접 비교하지 마십시오 **");
+    L.push("#");
+    L.push("# N 은 유한 열에만 적용됩니다. 무한 열과는 무관합니다 —");
+    L.push("#   무한 배열은 도선이 무한히 많다는 전제라 N 이라는 개념 자체가 없습니다.");
+    L.push("# T_fin_* 는 전력 유속이 아니라 측정창 평균 |E|² 이므로 1 을 넘을 수 있습니다.");
+    L.push("#   이는 간섭에 의한 것이며 물리입니다. gap 처리하지 않습니다.");
+    L.push("# T_inf_grid > 1 인 행은 화면 곡선에서 gap(끊김) 처리된 점입니다.");
+    L.push("#   무손실 격자의 전력 투과율은 1 을 넘을 수 없으므로 **물리값이 아니라");
+    L.push("#   수치 인공물**입니다 (λ < d 의 다중 전파차수 구간, floquetZ 의 1/κ).");
+    L.push("#   원값을 그대로 남기니 검산에 쓰십시오.");
+    L.push("# T_plus_R 은 Floquet 의 T+R 입니다. **판정이 아니라 기록이며 임계가 없습니다.**");
+    L.push("#   1 에서 벗어나는 정도는 Rayleigh 지표가 아니라 floquetZ 임피던스 시트 근사의");
+    L.push("#   충실도 지표이고, 무차원 d/λ 와 a/d 만의 함수입니다.");
+    L.push("# rayleigh_flag: d/λ 가 정수(스치는 회절차수, κ→0)이면 1.");
+    L.push("#");
+    L.push("# [경고] a/d 유효 범위 — 현재 a/d = " + ratio.toFixed(3) +
+           (ratio <= 0.05 ? "  (권장 범위 안)" : "  (권장 0.05 초과!)"));
+    L.push("#   a/d ≤ 0.05  : λ≫d 에서 |T+R−1| 0.3 % 이내 — 안전");
+    L.push("#   a/d = 0.10  : λ≫d 9 % · λ<d 최대 84 % — 오차를 명시하면 사용 가능");
+    L.push("#   a/d = 0.30  : λ<d 최대 21594 % — **논문 사용 불가** (A_RATIO_MAX 상한)");
+    L.push("#");
+    L.push("# 행 격자: λ 1~30 cm 를 0.1 cm 간격 291행. T_fin_* 는 0.5 cm 격자(59점)에서만");
+    L.push("#   계산하므로 **나머지 행은 빈 칸**입니다. 이는 격자 차이일 뿐이며");
+    L.push("#   화면에 보이는 탭과는 무관합니다 — 유한 값은 탭과 상관없이 항상 채웁니다.");
+    if (extraLam !== null) {
+      L.push("#   단, **현재 λ = " + extraLam + " cm 는 0.5 cm 격자에 없지만 채웠습니다** —");
+      L.push("#   화면 하단 [B] 패널이 보여 주는 값(논문에 싣는 숫자)이 이 행입니다.");
+      L.push("#   유한 값이 들어간 행은 59 + 1 = 60 개입니다.");
+    }
+    L.push("# 값은 반올림하지 않았습니다 (왕복 정확 표현).");
+    L.push("lam_cm,d_mm,a_mm,N,T_inf_grid,T_inf_huygens,T_fin_grid,T_fin_huygens,T_plus_R,rayleigh_flag");
+
+    curve.inf.infGrid.forEach(function (p, i) {
+      const lam = p.lam;
+      const hasFin = Object.prototype.hasOwnProperty.call(finG, lam);
+      L.push([
+        num(lam), num(d), num(a), num(N),
+        num(p.T),                                   // T_inf_grid (원값 — gap 점도 그대로)
+        num(curve.inf.infHuy[i].T),                 // T_inf_huygens
+        hasFin ? num(finG[lam]) : "",               // T_fin_grid
+        hasFin ? num(finH[lam]) : "",               // T_fin_huygens
+        num(p.TR),                                  // T_plus_R  [기록]
+        num(rayleighFlag(lam, d)),
+      ].join(","));
+    });
+    return L.join("\r\n") + "\r\n";
+  }
+
+  function exportCSV() {
+    if (!curve.inf) return;
+    // BOM 을 붙인다 — 엑셀이 UTF-8 을 못 알아보고 주석의 한글이 깨진다.
+    const blob = new Blob(["﻿" + buildCSV()], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "Tlambda_d" + curve.d + "mm_a" + curve.a + "mm_N" +
+                 (curve.fin ? curve.fin.N : curveN()) + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
   function apply() { syncLabels(); broadcast(); updateQuant(); updateCurve(); }
@@ -482,6 +602,14 @@
         updateQuant();
         updateCurve();   // 탭마다 d·a 가 다르므로 곡선도 따라가야 한다 (§8-4)
         setTabBusy(false);
+        // 진단줄과 탭 경고는 refreshProbe() 안에서만 갱신된다. 탭 전환 뒤에 부르지 않으면
+        // 마스터 탭 번호만 바뀌고 iframe 탭 번호는 낡은 값이 남아 **거짓 불일치 ❌** 가
+        // 뜬다. 탭 일치 감시는 게이트이므로 거짓 경보를 두지 않는다.
+        //
+        // 다만 **여기서 바로 부르면 안 된다** — broadcast() 는 postMessage 라 비동기이고,
+        // iframe 은 아직 탭을 적용하지 않았다. 같은 태스크에서 읽으면 100 % 거짓 ❌ 다
+        // (실측). iframe 이 반영될 때까지 기다린 뒤 부른다.
+        refreshProbeWhenSettled();
       });
     });
   });
@@ -615,11 +743,29 @@
     return ok;
   }
 
+  // 양쪽 iframe 이 마스터 탭을 반영할 때까지 기다린 뒤 진단줄을 갱신한다.
+  // **대기에 타이머를 쓰지 않는다** — 백그라운드 탭에서 setTimeout 은 1초로 클램프되고
+  // 5분 뒤에는 1분 정렬까지 간다 (설계 §15-20). MessageChannel 태스크 틱으로 돈다.
+  function refreshProbeWhenSettled(budgetMs) {
+    const t0 = performance.now();
+    const want = activeTab;
+    (function step() {
+      if (want !== activeTab) return;          // 그 사이 또 바뀌었다 — 새 호출에 넘긴다
+      const settled = FRAMES.map(iframeTab).every(function (t) { return t === want; });
+      if (settled || performance.now() - t0 > (budgetMs || 4000)) { refreshProbe(); return; }
+      const c = new MessageChannel();
+      c.port1.onmessage = step;
+      c.port2.postMessage(0);
+    })();
+  }
+
   // ── 시작 ────────────────────────────────────────────────────────────
   let pending = FRAMES.length;
   FRAMES.forEach(function (f) {
     frameEl(f).addEventListener("load", function () {
-      if (--pending === 0) { apply(); pushAmp(); setTimeout(refreshProbe, 250); }
+      // 진단줄은 iframe 이 마스터 탭을 반영한 뒤에 읽어야 한다 — 그 전에 읽으면 거짓
+      // 불일치 ❌ 가 뜬다. 로드 직후에 탭을 바꾸면 250 ms 로는 부족하다(실측).
+      if (--pending === 0) { apply(); pushAmp(); refreshProbeWhenSettled(); }
     });
   });
 
@@ -631,9 +777,10 @@
     LEGEND_IN_CANVAS = this.checked;
     drawCurve(); renderCurveLegend();
   });
+  $("csvBtn").addEventListener("click", exportCSV);
 
   window.addEventListener("resize", function () {
-    setTimeout(refreshProbe, 250);
+    refreshProbeWhenSettled();
     drawCurve();                       // 캔버스 폭이 CSS 로 바뀌므로 다시 그린다
   });
 
@@ -662,5 +809,6 @@
       };
     },
     setN: function (n) { $("mN").value = String(n); $("mN").dispatchEvent(new Event("input")); },
+    csv: buildCSV,          // 게이트 8 — 다운로드하지 않고 내용만 확인할 수 있게
   };
 })();
